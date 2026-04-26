@@ -1,168 +1,87 @@
-import React, { useRef, useEffect } from 'react'
+import React from 'react';
+import Plot from 'react-plotly.js';
 
-function toScreen(val, min, max, lo, hi) {
-  return lo + ((val - min) / (max - min)) * (hi - lo)
-}
+export default function Stage2Vectors({ vectors }) {
+  const keys = Object.keys(vectors);
+  
+  // Extracting X, Y, Z coordinates for the plot
+  const xData = keys.map(k => vectors[k][0]);
+  const yData = keys.map(k => vectors[k][1]);
+  const zData = keys.map(k => vectors[k][2] || 0); // Default Z to 0 if 2D
+  const labels = keys;
 
-export default function Stage2({ vectors }) {
-  const canvasRef = useRef(null)
+  const data = [
+    {
+      type: 'scatter3d',
+      mode: 'markers+text',
+      x: xData,
+      y: yData,
+      z: zData,
+      text: labels,
+      textposition: 'top center',
+      marker: {
+        size: 8,
+        color: ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b'],
+        symbol: 'circle',
+        opacity: 0.8,
+        line: { color: '#ffffff', width: 0.5 }
+      },
+      font: { family: 'JetBrains Mono, monospace', size: 10, color: '#e2e8f0' }
+    },
+    // Adding lines from origin to each point to show "vector" distance
+    ...keys.map((k, i) => ({
+      type: 'scatter3d',
+      mode: 'lines',
+      x: [0, vectors[k][0]],
+      y: [0, vectors[k][1]],
+      z: [0, vectors[k][2] || 0],
+      line: {
+        color: ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b'][i % 5],
+        width: 2,
+        dash: 'dash'
+      },
+      showlegend: false,
+      hoverinfo: 'none'
+    }))
+  ];
 
-  // Dynamic Cosine Similarity Calculation for the UI Footer
-  const cosSim = (() => {
-    const vKeys = Object.keys(vectors)
-    if (vKeys.length < 2) return null
-    const v1 = vectors[vKeys[0]]
-    const v2 = vectors[vKeys[1]]
-    
-    const dot = v1.reduce((s, v, i) => s + v * (v2[i] || 0), 0)
-    const mag1 = Math.sqrt(v1.reduce((s, v) => s + v * v, 0))
-    const mag2 = Math.sqrt(v2.reduce((s, v) => s + v * v, 0))
-    if (mag1 === 0 || mag2 === 0) return "0.000"
-    return (dot / (mag1 * mag2)).toFixed(3)
-  })()
-
-  useEffect(() => {
-    const cv = canvasRef.current
-    if (!cv) return
-    const W = cv.offsetWidth || 420
-    const H = 200
-    cv.width = W
-    cv.height = H
-    const ctx = cv.getContext('2d')
-
-    // Background
-    ctx.fillStyle = '#000'
-    ctx.fillRect(0, 0, W, H)
-
-    // Grid lines
-    ctx.strokeStyle = '#1e293b'
-    ctx.lineWidth = 0.5
-    for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke() }
-    for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke() }
-
-    // Axes
-    const cx = W / 2, cy = H / 2
-    ctx.strokeStyle = '#334155'; ctx.lineWidth = 1
-    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke()
-    ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke()
-    ctx.fillStyle = '#475569'; ctx.font = '9px JetBrains Mono'
-    ctx.fillText('X', W - 14, cy - 6)
-    ctx.fillText('Y', cx + 6, 12)
-    ctx.fillText('0', cx + 4, cy + 10)
-
-    const keys = Object.keys(vectors)
-    const allPts = keys.map(k => vectors[k]).filter(Boolean)
-    if (!allPts.length) return
-
-    // Scale Points
-    const allX = allPts.map(p => p[0])
-    const allY = allPts.map(p => p[1])
-    const mnX = Math.min(...allX) - 0.25, mxX = Math.max(...allX) + 0.25
-    const mnY = Math.min(...allY) - 0.25, mxY = Math.max(...allY) + 0.25
-
-    const pts = {}
-    const pad = 30
-    keys.forEach(k => {
-      if (vectors[k]) {
-        pts[k] = [
-          toScreen(vectors[k][0], mnX, mxX, pad, W - pad),
-          toScreen(vectors[k][1], mnY, mxY, H - pad, pad)
-        ]
-      }
-    })
-
-    const origin = [cx, cy]
-    const colors = ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b']
-
-    keys.forEach((k, i) => {
-      if (!pts[k]) return
-      const col = colors[i % colors.length]
-      const isCentroid = k.toLowerCase().includes('centroid') || k.toLowerCase().includes('intent')
-
-      // Draw dashed line from origin
-      ctx.save()
-      ctx.globalAlpha = isCentroid ? 0.6 : 0.35
-      ctx.strokeStyle = col
-      ctx.setLineDash(isCentroid ? [6, 4] : [4, 5])
-      ctx.beginPath(); ctx.moveTo(origin[0], origin[1]); ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke()
-      ctx.restore()
-
-      // Draw the point
-      ctx.save()
-      ctx.shadowBlur = isCentroid ? 16 : 10; ctx.shadowColor = col
-      ctx.fillStyle = col
-      ctx.beginPath(); ctx.arc(pts[k][0], pts[k][1], isCentroid ? 6 : 5, 0, Math.PI * 2); ctx.fill()
-      ctx.restore()
-
-      // Label
-      ctx.fillStyle = '#e2e8f0'
-      ctx.font = 'bold 9px JetBrains Mono'
-      ctx.fillText(k, pts[k][0] + 8, pts[k][1] + 3)
-    })
-
-    // Origin dot
-    ctx.fillStyle = '#334155'
-    ctx.beginPath(); ctx.arc(origin[0], origin[1], 3, 0, Math.PI * 2); ctx.fill()
-    ctx.fillStyle = '#475569'; ctx.font = '9px JetBrains Mono'
-    ctx.fillText('origin', origin[0] + 5, origin[1] - 5)
-
-    // Canvas Cosine similarity annotation
-    if (keys.length >= 2) {
-      ctx.fillStyle = '#334155'
-      ctx.font = '9px JetBrains Mono'
-      ctx.fillText(`cos_sim(${keys[0]}, ${keys[1]}) ≈ ${cosSim}`, 8, H - 8)
-    }
-  }, [vectors, cosSim])
+  const layout = {
+    autosize: true,
+    height: 300,
+    margin: { l: 0, r: 0, b: 0, t: 0 },
+    paper_bgcolor: '#000000',
+    plot_bgcolor: '#000000',
+    scene: {
+      xaxis: { gridcolor: '#1e293b', zerolinecolor: '#334155', color: '#475569', title: 'Dim 1' },
+      yaxis: { gridcolor: '#1e293b', zerolinecolor: '#334155', color: '#475569', title: 'Dim 2' },
+      zaxis: { gridcolor: '#1e293b', zerolinecolor: '#334155', color: '#475569', title: 'Dim 3' },
+      bgcolor: '#000000',
+      camera: { eye: { x: 1.5, y: 1.5, z: 1.5 } } // Initial viewing angle
+    },
+    showlegend: false,
+  };
 
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
-        <StageNum>2</StageNum>
+        <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--blue3)', border: '1px solid var(--blue)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>2</div>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Vector Embedding Space
+          Interactive Embedding Space
         </span>
       </div>
-
       <div style={{ padding: 12 }}>
         <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 6 }}>
-          {"// 2D PROJECTION OF 3D EMBEDDING SPACE → triangulating semantic intent"}
+          // 3D VECTOR PROJECTION (INTERACTIVE)
         </div>
-        <canvas
-          ref={canvasRef}
-          style={{ width: '100%', height: 200, display: 'block', borderRadius: 3, border: '1px solid var(--border)' }}
-        />
-        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
-          {Object.keys(vectors).map((label, i) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ 
-                width: 8, height: 8, borderRadius: '50%', 
-                background: ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b'][i % 5], 
-                boxShadow: `0 0 5px currentColor`, flexShrink: 0 
-              }} />
-              <span>{label}</span>
-            </div>
-          ))}
+        <div style={{ borderRadius: 3, border: '1px solid var(--border)', overflow: 'hidden' }}>
+          <Plot
+            data={data}
+            layout={layout}
+            config={{ responsive: true, displayModeBar: false }}
+            style={{ width: '100%', height: '300px' }}
+          />
         </div>
-        {Object.keys(vectors).length > 1 && (
-          <div style={{ marginTop: 8, fontSize: 9, color: 'var(--border2)' }}>
-            {"// dimensions: 3D projection applied"}
-            {cosSim && <span style={{ marginLeft: 12 }}>semantic_spread ≈ {cosSim}</span>}
-          </div>
-        )}
       </div>
     </div>
-  )
-}
-
-function StageNum({ children }) {
-  return (
-    <div style={{
-      width: 18, height: 18, borderRadius: '50%',
-      background: 'var(--blue3)', border: '1px solid var(--blue)',
-      color: 'var(--blue)', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0,
-    }}>
-      {children}
-    </div>
-  )
+  );
 }
