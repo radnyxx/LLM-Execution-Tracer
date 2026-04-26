@@ -88,8 +88,9 @@ const generateResponse = async () => {
     } finally {
       setLoading(false);
       setActiveStep(0); 
-      setIsGenerating(false); // Make sure you reset your button state here!
-      };
+      setIsGenerating(false);
+      } // Make sure you reset your button state here!
+    };
 
    return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
@@ -137,13 +138,33 @@ const generateResponse = async () => {
           lineHeight: 1.7,
           whiteSpace: 'pre-wrap',
         }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
           <button 
             onClick={generateResponse}
             disabled={loading}
-            style={{ color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', marginBottom: 8 }}
+            style={{ color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit' }}
           >
-            {loading ? "$ system.processing..." : "$ llm.generate() [CLICK TO START]"}
+            {loading ? "$ system.processing..." : "$ llm.generate()"}
           </button>
+
+          {loading && (
+            <button 
+              onClick={stopGeneration}
+              style={{ 
+                color: 'var(--red)', 
+                background: 'none', 
+                border: '1px solid var(--red)', 
+                cursor: 'pointer', 
+                fontSize: 9, 
+                padding: '2px 6px', 
+                borderRadius: 2,
+                textTransform: 'uppercase'
+              }}
+            >
+              [STOP]
+            </button>
+          )}
+        </div>
           <br />
           {displayed}
           {(loading || (displayed && !done)) && <span className="cursor" style={{
