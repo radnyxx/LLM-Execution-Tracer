@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:     #000000;
+  --bg1:    #0a0a0a;
+  --bg2:    #111111;
+  --bg3:    #1a1a1a;
+  --bg4:    #222222;
+  --border: #1e293b;
+  --border2:#334155;
+  --text:   #e2e8f0;
+  --text2:  #94a3b8;
+  --text3:  #475569;
+  --blue:   #00d4ff;
+  --blue2:  #0099cc;
+  --blue3:  rgba(0,212,255,0.10);
+  --blue4:  rgba(0,212,255,0.05);
+  --green:  #00ff9d;
+  --amber:  #ffaa00;
+  --red:    #ff4444;
+  --purple: #a855f7;
+  --font:   'JetBrains Mono', monospace;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg1); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Range inputs */
+input[type="range"] {
+  -webkit-appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border2);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--blue);
+  cursor: pointer;
+}
+
+/* Animations */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,255,157,0.4); }
+  50%       { opacity: 0.7; box-shadow: 0 0 0 4px rgba(0,255,157,0); }
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+@keyframes kv-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(0,212,255,0.5); }
+  100% { box-shadow: 0 0 0 4px rgba(0,212,255,0); }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  10%      { transform: translateX(-2px); }
+  30%      { transform: translateX(2px); }
+  50%      { transform: translateX(-2px); }
+  70%      { transform: translateX(2px); }
+  90%      { transform: translateX(-2px); }
+}
+@keyframes flow-step {
+  0%   { border-color: var(--border2); color: var(--text2); background: var(--bg3); }
+  50%  { border-color: var(--blue); color: var(--blue); background: var(--blue4); box-shadow: 0 0 8px rgba(0,212,255,0.2); }
+  100% { border-color: var(--border2); color: var(--text2); background: var(--bg3); }
+}
