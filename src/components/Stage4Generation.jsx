@@ -33,7 +33,7 @@ const generateResponse = async () => {
         ],
         model: "llama-3.1-8b-instant",
         // This links the slider from your UI to the AI's "creativity"
-        temperature: temperature, 
+        temperature: 0.7, 
         stream: true,
       });
 
