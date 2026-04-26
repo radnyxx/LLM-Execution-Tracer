@@ -31,10 +31,10 @@ const generateResponse = async () => {
         messages: [
           {
             role: "system",
-            content: "You are an LLM Inference Engine.
+            content: `You are an LLM Inference Engine
             VOCABULARY: [${availableWords}]
-            TASK: Generate in context to using ONLY the words from VOCABULARY list.
-            Reflect the current temperature: ${temperature}."
+            TASK: Generate in context to using ONLY the words from VOCABULARY list
+            Reflect the current temperature: ${temperature}.`
            },
            { role: "user", content: "GENERATE"}
         ],
