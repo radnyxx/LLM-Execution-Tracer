@@ -1,87 +1,121 @@
-import React from 'react';
-import Plot from 'react-plotly.js';
+import React, { useState, useRef } from 'react'
 
 export default function Stage2Vectors({ vectors }) {
-  const keys = Object.keys(vectors);
-  
-  // Extracting X, Y, Z coordinates for the plot
-  const xData = keys.map(k => vectors[k][0]);
-  const yData = keys.map(k => vectors[k][1]);
-  const zData = keys.map(k => vectors[k][2] || 0); // Default Z to 0 if 2D
-  const labels = keys;
+  const [rotate, setRotate] = useState({ x: 25, y: -15 })
+  const containerRef = useRef(null)
 
-  const data = [
-    {
-      type: 'scatter3d',
-      mode: 'markers+text',
-      x: xData,
-      y: yData,
-      z: zData,
-      text: labels,
-      textposition: 'top center',
-      marker: {
-        size: 8,
-        color: ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b'],
-        symbol: 'circle',
-        opacity: 0.8,
-        line: { color: '#ffffff', width: 0.5 }
-      },
-      font: { family: 'JetBrains Mono, monospace', size: 10, color: '#e2e8f0' }
-    },
-    // Adding lines from origin to each point to show "vector" distance
-    ...keys.map((k, i) => ({
-      type: 'scatter3d',
-      mode: 'lines',
-      x: [0, vectors[k][0]],
-      y: [0, vectors[k][1]],
-      z: [0, vectors[k][2] || 0],
-      line: {
-        color: ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b'][i % 5],
-        width: 2,
-        dash: 'dash'
-      },
-      showlegend: false,
-      hoverinfo: 'none'
-    }))
-  ];
+  const handleMouseMove = (e) => {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    // Sensitivity adjustment for rotation
+    const x = ((e.clientY - rect.top) / rect.height - 0.5) * 50
+    const y = ((e.clientX - rect.left) / rect.width - 0.5) * -50
+    setRotate({ x, y })
+  }
 
-  const layout = {
-    autosize: true,
-    height: 300,
-    margin: { l: 0, r: 0, b: 0, t: 0 },
-    paper_bgcolor: '#000000',
-    plot_bgcolor: '#000000',
-    scene: {
-      xaxis: { gridcolor: '#1e293b', zerolinecolor: '#334155', color: '#475569', title: 'Dim 1' },
-      yaxis: { gridcolor: '#1e293b', zerolinecolor: '#334155', color: '#475569', title: 'Dim 2' },
-      zaxis: { gridcolor: '#1e293b', zerolinecolor: '#334155', color: '#475569', title: 'Dim 3' },
-      bgcolor: '#000000',
-      camera: { eye: { x: 1.5, y: 1.5, z: 1.5 } } // Initial viewing angle
-    },
-    showlegend: false,
-  };
+  const keys = Object.keys(vectors)
+  const colors = ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b']
 
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
         <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--blue3)', border: '1px solid var(--blue)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>2</div>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Interactive Embedding Space
+          Neural Perspective Plot
         </span>
       </div>
-      <div style={{ padding: 12 }}>
-        <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 6 }}>
-          // 3D VECTOR PROJECTION (INTERACTIVE)
+
+      <div 
+        ref={containerRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setRotate({ x: 25, y: -15 })}
+        style={{ 
+          height: 280, 
+          position: 'relative', 
+          perspective: '1200px', 
+          background: '#000',
+          overflow: 'hidden',
+          cursor: 'none'
+        }}
+      >
+        {/* The Grid "Floor" */}
+        <div style={{
+          position: 'absolute', width: '300%', height: '300%',
+          top: '-100%', left: '-100%',
+          backgroundImage: `linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)`,
+          backgroundSize: '50px 50px',
+          transform: `rotateX(75deg) rotateZ(${rotate.y * 0.5}deg) translateZ(-100px)`,
+          opacity: 0.2,
+          pointerEvents: 'none'
+        }} />
+
+        {/* Vector Space Container */}
+        <div style={{
+          position: 'absolute', width: '100%', height: '100%',
+          transformStyle: 'preserve-3d',
+          transform: `rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)`,
+          transition: 'transform 0.15s ease-out'
+        }}>
+          {keys.map((k, i) => {
+            const v = vectors[k] || [0, 0, 0]
+            const col = colors[i % colors.length]
+            
+            // Mapping values to visual space
+            const tx = v[0] * 120 + 200 
+            const ty = v[1] * 120 + 140
+            const tz = (v[2] || 0) * 80
+
+            return (
+              <div key={k} style={{
+                position: 'absolute',
+                left: tx, top: ty,
+                transform: `translateZ(${tz}px)`,
+                transformStyle: 'preserve-3d'
+              }}>
+                {/* Vertical Stem connecting point to "ground" */}
+                <div style={{
+                  position: 'absolute', width: 1, height: 200,
+                  background: `linear-gradient(to top, ${col}, transparent)`,
+                  transform: 'rotateX(-90deg)',
+                  transformOrigin: 'top',
+                  opacity: 0.3
+                }} />
+                
+                {/* The Point (Glow Effect) */}
+                <div style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: col, 
+                  boxShadow: `0 0 15px ${col}`,
+                  transform: 'translate(-50%, -50%)',
+                  border: '1px solid white'
+                }} />
+
+                {/* Tag */}
+                <div style={{
+                  position: 'absolute', left: 12, top: -5,
+                  fontSize: 10, color: '#fff', whiteSpace: 'nowrap',
+                  fontFamily: 'JetBrains Mono',
+                  textShadow: '0 0 5px #000',
+                  pointerEvents: 'none'
+                }}>
+                  {k} <span style={{ color: 'var(--text3)', fontSize: 8 }}>[{v[0]}, {v[1]}, {v[2] || 0}]</span>
+                </div>
+              </div>
+            )
+          })}
         </div>
-        <div style={{ borderRadius: 3, border: '1px solid var(--border)', overflow: 'hidden' }}>
-          <Plot
-            data={data}
-            layout={layout}
-            config={{ responsive: true, displayModeBar: false }}
-            style={{ width: '100%', height: '300px' }}
-          />
+
+        {/* Origin Marker */}
+        <div style={{
+          position: 'absolute', left: '50%', top: '50%',
+          width: 4, height: 4, background: '#334155', borderRadius: '50%',
+          transform: 'translate(-50%, -50%)'
+        }} />
+        
+        <div style={{ position: 'absolute', bottom: 12, left: 12, fontSize: 9, color: 'var(--blue)', opacity: 0.6, letterSpacing: '0.1em' }}>
+          LIVE_VIEW // INTERACTIVE_SCAN
         </div>
       </div>
     </div>
-  );
+  )
 }
