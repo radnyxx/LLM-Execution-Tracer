@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { DEFAULT_SCHEMA, DEFAULT_JSON } from './schema.js'
 import Sidebar from './components/Sidebar.jsx'
 import Stage1Tokenization from './components/Stage1Tokenization.jsx'
-import Stage2Vectors from './components/Stage2.jsx' // Updated to match our fixed file
+import Stage2Vectors from './components/Stage2Vectors.jsx'
 import Stage3Softmax from './components/Stage3Softmax.jsx'
 import Stage4Generation from './components/Stage4Generation.jsx'
 
@@ -31,6 +31,7 @@ export default function App() {
   const [parseError, setParseError] = useState('')
   const [temperature, setTemperature] = useState(DEFAULT_SCHEMA.temperature)
 
+  // Debounced live parse
   useEffect(() => {
     const t = setTimeout(() => {
       try {
@@ -56,6 +57,7 @@ export default function App() {
     }
   }, [jsonText])
 
+  // Temperature slider → sync back to JSON
   const handleTempChange = useCallback(v => {
     setTemperature(v)
     try {
@@ -73,6 +75,7 @@ export default function App() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* ── Header ── */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '7px 16px',
@@ -96,6 +99,7 @@ export default function App() {
         </div>
       </header>
 
+      {/* ── Main ── */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar
           jsonText={jsonText}
@@ -104,6 +108,7 @@ export default function App() {
           parseError={parseError}
         />
 
+        {/* Stage grid */}
         <main style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Stage1Tokenization tokens={tokens} />

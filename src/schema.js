@@ -1,22 +1,23 @@
 export const DEFAULT_SCHEMA = {
+  prompt_topic: "Socrates & Philosophy",
   tokens: [
-    { word: 'Write',    id: 102, weight: 0.80 },
+    { word: 'Socrates', id: 502, weight: 0.98 },
+    { word: 'was',      id: 10,  weight: 0.15 },
     { word: 'a',        id: 5,   weight: 0.10 },
-    { word: 'poem',     id: 550, weight: 0.95 },
-    { word: 'on',       id: 12,  weight: 0.10 },
-    { word: 'football', id: 991, weight: 0.99 },
+    { word: 'Greek',    id: 882, weight: 0.85 },
+    { word: 'thinker',  id: 441, weight: 0.92 },
   ],
   vectors: {
-    football: [0.92, -0.11, 0.5],
-    poem:     [0.05,  0.88, 0.2],
-    centroid: [0.48,  0.38, 0.35],
+    Socrates: [0.12, 0.88, 0.45],
+    Athens:   [0.15, 0.82, 0.39],
+    Intent:   [0.35, 0.65, 0.42], // This will act as your centroid
   },
   softmax: [
-    { word: 'The',    prob: 0.45 },
-    { word: 'Green',  prob: 0.20 },
-    { word: 'Eleven', prob: 0.10 },
+    { word: 'Wisdom', prob: 0.55 },
+    { word: 'Justice', prob: 0.25 },
+    { word: 'Virtue', prob: 0.15 },
   ],
-  temperature: 0.7,
+  temperature: 0.45,
 }
 
 export const DEFAULT_JSON = JSON.stringify(DEFAULT_SCHEMA, null, 2)
