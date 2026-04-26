@@ -118,7 +118,10 @@ export default function App() {
               temperature={temperature}
               onTempChange={handleTempChange}
             />
-            <Stage4Generation />
+            <Stage4Generation
+              schema={schema}
+              temperature={temperature}
+             />
           </div>
         </main>
       </div>

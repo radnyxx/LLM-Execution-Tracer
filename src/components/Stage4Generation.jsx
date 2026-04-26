@@ -11,7 +11,7 @@ const groq = new OpenAI({
 const STEPS = ['TOKENIZE', 'EMBED', 'ATTEND', 'DECODE', 'SAMPLE', 'APPEND'];
 const KV_SLOTS = 32;
 
-export default function Stage4() {
+export default function Stage4Generation({ schema, temperature }) {
   const [displayed, setDisplayed] = useState('');
   const [kvCount, setKvCount] = useState(0);
   const [activeStep, setActiveStep] = useState(0);
@@ -29,11 +29,18 @@ const generateResponse = async () => {
     try {
       const stream = await groq.chat.completions.create({
         messages: [
-          { role: "system", content: "Write a short 4-line poem about football. No commentary." }
+          {
+            role: "system",
+            content: "You are an LLM Inference Engine.
+            VOCABULARY: [${availableWords}]
+            TASK: Generate in context to using ONLY the words from VOCABULARY list.
+            Reflect the current temperature: ${temperature}."
+           },
+           { role: "user", content: "GENERATE"}
         ],
         model: "llama-3.1-8b-instant",
         // This links the slider from your UI to the AI's "creativity"
-        temperature: 0.7, 
+        temperature: temperature, 
         stream: true,
       });
 
