@@ -18,9 +18,21 @@ export default function Stage4Generation({ schema, temperature }) {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
 
+const [isGenerating, setIsGenerating] = useState(false);
+const abortControllerRef = useRef(null);
+
+const stopGeneration = () => {
+  if (abortControllerRef.current) {
+    abortControllerRef.current.abort();
+    setIsGenerating(false);
+    setLoading(false);
+  }
+};
 
 const generateResponse = async () => {
     if (loading) return;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setLoading(true);
     setDisplayed('');
     setKvCount(0);
@@ -41,6 +53,7 @@ const generateResponse = async () => {
         // This links the slider from your UI to the AI's "creativity"
         temperature: temperature, 
         stream: true,
+        { signal: controller.signal
       });
 
       for await (const chunk of stream) {
@@ -60,13 +73,19 @@ const generateResponse = async () => {
       }
       setDone(true);
     } catch (error) {
-      console.error("Inference Error:", error);
-      setDisplayed("SIGNAL_LOST: Check API Key and Network.");
+      // Check if the error was caused by the user clicking 'Stop'
+      if (error.name === 'AbortError') {
+        console.log("Inference manually halted by user.");
+        // We don't want to show a scary red error if they just clicked stop
+      } else {
+        console.error("Inference Error:", error);
+        setDisplayed("SIGNAL_LOST: Check API Key and Network.");
+      }
     } finally {
       setLoading(false);
-      setActiveStep(0); // Reset the lights
-    }
-  };
+      setActiveStep(0); 
+      setIsGenerating(false); // Make sure you reset your button state here!
+      };
 
    return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
