@@ -18,7 +18,9 @@ export default function Stage4() {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const generateResponse = async () => {
+
+const generateResponse = async () => {
+    if (loading) return;
     setLoading(true);
     setDisplayed('');
     setKvCount(0);
@@ -27,30 +29,40 @@ export default function Stage4() {
     try {
       const stream = await groq.chat.completions.create({
         messages: [
-          { role: "system", content: "You are a cyberpunk terminal. Write a 2-line glitchy poem." },
-          { role: "user", content: "Initialize sequence." }
+          { role: "system", content: "Write a short 4-line poem about football. No commentary." }
         ],
         model: "llama-3.1-8b-instant",
+        // This links the slider from your UI to the AI's "creativity"
+        temperature: temperature, 
         stream: true,
       });
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
-        
-        // Update UI state for every "token" received
-        setDisplayed((prev) => prev + content);
-        setKvCount(k => Math.min(k + 1, KV_SLOTS));
-        setActiveStep(s => (s + 1) % STEPS.length);
+        if (content) {
+          // --- THE UI SYNC LOOP ---
+          // This cycles through your top indicators: TOKENIZE -> EMBED -> etc.
+          for (let i = 0; i < STEPS.length; i++) {
+            setActiveStep(i);
+            // Small delay so the user can actually see the light move across the steps
+            await new Promise(resolve => setTimeout(resolve, 60)); 
+          }
+
+          setDisplayed((prev) => prev + content);
+          setKvCount((prev) => Math.min(prev + 1, KV_SLOTS));
+        }
       }
       setDone(true);
     } catch (error) {
-      setDisplayed("ERROR: API_KEY_MISSING or SIGNAL_LOST");
+      console.error("Inference Error:", error);
+      setDisplayed("SIGNAL_LOST: Check API Key and Network.");
     } finally {
       setLoading(false);
+      setActiveStep(0); // Reset the lights
     }
   };
 
-  return (
+   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
         <StageNum>4</StageNum>
