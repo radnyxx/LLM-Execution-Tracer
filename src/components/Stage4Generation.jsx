@@ -30,7 +30,7 @@ export default function Stage4() {
           { role: "system", content: "You are a cyberpunk terminal. Write a 2-line glitchy poem." },
           { role: "user", content: "Initialize sequence." }
         ],
-        model: "llama3-8b-8192",
+        model: "llama-3.1-8b-instant",
         stream: true,
       });
 
