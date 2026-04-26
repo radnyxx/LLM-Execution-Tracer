@@ -26,6 +26,8 @@ const generateResponse = async () => {
     setKvCount(0);
     setDone(false);
 
+    const availableWords = schema?.tokens?.map(t => t.word).join(", ") || "No tokens";
+
     try {
       const stream = await groq.chat.completions.create({
         messages: [
