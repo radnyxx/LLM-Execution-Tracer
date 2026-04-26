@@ -4,27 +4,22 @@ function toScreen(val, min, max, lo, hi) {
   return lo + ((val - min) / (max - min)) * (hi - lo)
 }
 
-function drawArrow(ctx, x1, y1, x2, y2, color) {
-  const headLen = 7
-  const angle = Math.atan2(y2 - y1, x2 - x1)
-  ctx.beginPath()
-  ctx.moveTo(x1, y1)
-  ctx.lineTo(x2, y2)
-  ctx.strokeStyle = color
-  ctx.lineWidth = 1.5
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(x2, y2)
-  ctx.lineTo(x2 - headLen * Math.cos(angle - 0.4), y2 - headLen * Math.sin(angle - 0.4))
-  ctx.moveTo(x2, y2)
-  ctx.lineTo(x2 - headLen * Math.cos(angle + 0.4), y2 - headLen * Math.sin(angle + 0.4))
-  ctx.strokeStyle = color
-  ctx.lineWidth = 1
-  ctx.stroke()
-}
-
 export default function Stage2({ vectors }) {
   const canvasRef = useRef(null)
+
+  // Dynamic Cosine Similarity Calculation for the UI Footer
+  const cosSim = (() => {
+    const vKeys = Object.keys(vectors)
+    if (vKeys.length < 2) return null
+    const v1 = vectors[vKeys[0]]
+    const v2 = vectors[vKeys[1]]
+    
+    const dot = v1.reduce((s, v, i) => s + v * (v2[i] || 0), 0)
+    const mag1 = Math.sqrt(v1.reduce((s, v) => s + v * v, 0))
+    const mag2 = Math.sqrt(v2.reduce((s, v) => s + v * v, 0))
+    if (mag1 === 0 || mag2 === 0) return "0.000"
+    return (dot / (mag1 * mag2)).toFixed(3)
+  })()
 
   useEffect(() => {
     const cv = canvasRef.current
@@ -35,6 +30,7 @@ export default function Stage2({ vectors }) {
     cv.height = H
     const ctx = cv.getContext('2d')
 
+    // Background
     ctx.fillStyle = '#000'
     ctx.fillRect(0, 0, W, H)
 
@@ -54,31 +50,30 @@ export default function Stage2({ vectors }) {
     ctx.fillText('Y', cx + 6, 12)
     ctx.fillText('0', cx + 4, cy + 10)
 
-    const pts = {}
     const keys = Object.keys(vectors)
     const allPts = keys.map(k => vectors[k]).filter(Boolean)
     if (!allPts.length) return
 
+    // Scale Points
     const allX = allPts.map(p => p[0])
     const allY = allPts.map(p => p[1])
     const mnX = Math.min(...allX) - 0.25, mxX = Math.max(...allX) + 0.25
     const mnY = Math.min(...allY) - 0.25, mxY = Math.max(...allY) + 0.25
 
+    const pts = {}
     const pad = 30
     keys.forEach(k => {
       if (vectors[k]) {
         pts[k] = [
           toScreen(vectors[k][0], mnX, mxX, pad, W - pad),
-          toScreen(vectors[k][1], mnY, mxY, H - pad, pad),
-          vectors[k][2]
+          toScreen(vectors[k][1], mnY, mxY, H - pad, pad)
         ]
       }
     })
 
     const origin = [cx, cy]
-
-    // Dashed lines from origin to football/poem
     const colors = ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b']
+
     keys.forEach((k, i) => {
       if (!pts[k]) return
       const col = colors[i % colors.length]
@@ -104,43 +99,20 @@ export default function Stage2({ vectors }) {
       ctx.font = 'bold 9px JetBrains Mono'
       ctx.fillText(k, pts[k][0] + 8, pts[k][1] + 3)
     })
-    
+
     // Origin dot
     ctx.fillStyle = '#334155'
     ctx.beginPath(); ctx.arc(origin[0], origin[1], 3, 0, Math.PI * 2); ctx.fill()
     ctx.fillStyle = '#475569'; ctx.font = '9px JetBrains Mono'
     ctx.fillText('origin', origin[0] + 5, origin[1] - 5)
 
-    // Cosine similarity annotation
-    const vKeys = Object.keys(vectors);
-    if (vKeys.length >= 2) {
-      const k1 = vKeys[0];
-      const k2 = vKeys[1];
-      const v1 = vectors[k1];
-      const v2 = vectors[k2];
-
-    // Dot product
-    const dot = v1.reduce((s, v, i) => s + v * (v2[i] || 0), 0);
-    // Magnitudes
-    const mag1 = Math.sqrt(v1.reduce((s, v) => s + v * v, 0));
-    const mag2 = Math.sqrt(v2.reduce((s, v) => s + v * v, 0));
-  
-    const sim = (dot / (mag1 * mag2)).toFixed(3);
-
-    ctx.fillStyle = '#334155';
-    ctx.font = '9px JetBrains Mono';
-    ctx.fillText(`cos_sim(${k1}, ${k2}) ≈ ${sim}`, 8, H - 8);
-  }
-
-  }, [vectors])
-
-  const cosSim = (() => {
-    if (!vectors.football || !vectors.poem) return null
-    const dot = vectors.football.reduce((s, v, i) => s + v * vectors.poem[i], 0)
-    const magF = Math.sqrt(vectors.football.reduce((s, v) => s + v * v, 0))
-    const magP = Math.sqrt(vectors.poem.reduce((s, v) => s + v * v, 0))
-    return (dot / (magF * magP)).toFixed(3)
-  })()
+    // Canvas Cosine similarity annotation
+    if (keys.length >= 2) {
+      ctx.fillStyle = '#334155'
+      ctx.font = '9px JetBrains Mono'
+      ctx.fillText(`cos_sim(${keys[0]}, ${keys[1]}) ≈ ${cosSim}`, 8, H - 8)
+    }
+  }, [vectors, cosSim])
 
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
@@ -153,7 +125,7 @@ export default function Stage2({ vectors }) {
 
       <div style={{ padding: 12 }}>
         <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 6 }}>
-          // 2D PROJECTION OF 3D EMBEDDING SPACE  →  triangulating semantic intent
+          {"// 2D PROJECTION OF 3D EMBEDDING SPACE → triangulating semantic intent"}
         </div>
         <canvas
           ref={canvasRef}
@@ -171,17 +143,16 @@ export default function Stage2({ vectors }) {
             </div>
           ))}
         </div>
-      </div>
-    {Object.keys(vectors).length > 1 && (
+        {Object.keys(vectors).length > 1 && (
           <div style={{ marginTop: 8, fontSize: 9, color: 'var(--border2)' }}>
-            // dimensions: 3D projection applied
+            {"// dimensions: 3D projection applied"}
             {cosSim && <span style={{ marginLeft: 12 }}>semantic_spread ≈ {cosSim}</span>}
           </div>
         )}
-      </div> {/* This closes the padding div */}
-    </div>   {/* This closes the main container div */}
-  );         {/* This closes the return statement */}
-}            {/* This closes the Stage2 function */}
+      </div>
+    </div>
+  )
+}
 
 function StageNum({ children }) {
   return (
@@ -193,5 +164,5 @@ function StageNum({ children }) {
     }}>
       {children}
     </div>
-  );
+  )
 }
