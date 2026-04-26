@@ -55,7 +55,7 @@ export default function Stage2({ vectors }) {
     ctx.fillText('0', cx + 4, cy + 10)
 
     const pts = {}
-    const keys = ['football', 'poem', 'centroid']
+    const keys = Object.keys(vectors)
     const allPts = keys.map(k => vectors[k]).filter(Boolean)
     if (!allPts.length) return
 
@@ -70,6 +70,7 @@ export default function Stage2({ vectors }) {
         pts[k] = [
           toScreen(vectors[k][0], mnX, mxX, pad, W - pad),
           toScreen(vectors[k][1], mnY, mxY, H - pad, pad),
+          vectors[k][2]
         ]
       }
     })
@@ -77,43 +78,33 @@ export default function Stage2({ vectors }) {
     const origin = [cx, cy]
 
     // Dashed lines from origin to football/poem
-    ;[['football', '#ff4444'], ['poem', '#a855f7']].forEach(([k, col]) => {
+    const colors = ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b']
+    keys.forEach((k, i) => {
       if (!pts[k]) return
+      const col = colors[i % colors.length]
+      const isCentroid = k.toLowerCase().includes('centroid') || k.toLowerCase().includes('intent')
+
+      // Draw dashed line from origin
       ctx.save()
-      ctx.globalAlpha = 0.35
+      ctx.globalAlpha = isCentroid ? 0.6 : 0.35
       ctx.strokeStyle = col
-      ctx.lineWidth = 1
-      ctx.setLineDash([4, 5])
+      ctx.setLineDash(isCentroid ? [6, 4] : [4, 5])
       ctx.beginPath(); ctx.moveTo(origin[0], origin[1]); ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke()
       ctx.restore()
-    })
 
-    // Glowing trajectory to centroid
-    if (pts.centroid) {
+      // Draw the point
       ctx.save()
-      ctx.shadowBlur = 14; ctx.shadowColor = '#00d4ff'
-      ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5
-      ctx.setLineDash([6, 4])
-      ctx.beginPath(); ctx.moveTo(origin[0], origin[1]); ctx.lineTo(pts.centroid[0], pts.centroid[1]); ctx.stroke()
-      ctx.restore()
-    }
-
-    // Draw points
-    const drawPt = (pt, label, col, r) => {
-      if (!pt) return
-      ctx.save()
-      ctx.shadowBlur = 16; ctx.shadowColor = col
+      ctx.shadowBlur = isCentroid ? 16 : 10; ctx.shadowColor = col
       ctx.fillStyle = col
-      ctx.beginPath(); ctx.arc(pt[0], pt[1], r, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.arc(pts[k][0], pts[k][1], isCentroid ? 6 : 5, 0, Math.PI * 2); ctx.fill()
       ctx.restore()
-      ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 9px JetBrains Mono'
-      ctx.fillText(label, pt[0] + r + 4, pt[1] + 3)
-    }
 
-    drawPt(pts.football, 'football', '#ff4444', 5)
-    drawPt(pts.poem, 'poem', '#a855f7', 5)
-    drawPt(pts.centroid, 'centroid [intent]', '#00d4ff', 6)
-
+      // Label
+      ctx.fillStyle = '#e2e8f0'
+      ctx.font = 'bold 9px JetBrains Mono'
+      ctx.fillText(k, pts[k][0] + 8, pts[k][1] + 3)
+    })
+    
     // Origin dot
     ctx.fillStyle = '#334155'
     ctx.beginPath(); ctx.arc(origin[0], origin[1], 3, 0, Math.PI * 2); ctx.fill()
@@ -121,14 +112,26 @@ export default function Stage2({ vectors }) {
     ctx.fillText('origin', origin[0] + 5, origin[1] - 5)
 
     // Cosine similarity annotation
-    if (vectors.football && vectors.poem) {
-      const dot = vectors.football.reduce((s, v, i) => s + v * vectors.poem[i], 0)
-      const magF = Math.sqrt(vectors.football.reduce((s, v) => s + v * v, 0))
-      const magP = Math.sqrt(vectors.poem.reduce((s, v) => s + v * v, 0))
-      const sim = (dot / (magF * magP)).toFixed(3)
-      ctx.fillStyle = '#334155'; ctx.font = '9px JetBrains Mono'
-      ctx.fillText(`cos_sim(football, poem) ≈ ${sim}`, 8, H - 8)
-    }
+    const vKeys = Object.keys(vectors);
+    if (vKeys.length >= 2) {
+      const k1 = vKeys[0];
+      const k2 = vKeys[1];
+      const v1 = vectors[k1];
+      const v2 = vectors[k2];
+
+    // Dot product
+    const dot = v1.reduce((s, v, i) => s + v * (v2[i] || 0), 0);
+    // Magnitudes
+    const mag1 = Math.sqrt(v1.reduce((s, v) => s + v * v, 0));
+    const mag2 = Math.sqrt(v2.reduce((s, v) => s + v * v, 0));
+  
+    const sim = (dot / (mag1 * mag2)).toFixed(3);
+
+    ctx.fillStyle = '#334155';
+    ctx.font = '9px JetBrains Mono';
+    ctx.fillText(`cos_sim(${k1}, ${k2}) ≈ ${sim}`, 8, H - 8);
+  }
+
   }, [vectors])
 
   const cosSim = (() => {
@@ -157,27 +160,28 @@ export default function Stage2({ vectors }) {
           style={{ width: '100%', height: 200, display: 'block', borderRadius: 3, border: '1px solid var(--border)' }}
         />
         <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 9, color: 'var(--text2)', flexWrap: 'wrap' }}>
-          {[
-            { col: '#ff4444', label: 'football [sport cluster]' },
-            { col: '#a855f7', label: 'poem [literary cluster]' },
-            { col: '#00d4ff', label: 'centroid → inferred intent' },
-          ].map(({ col, label }) => (
+          {Object.keys(vectors).map((label, i) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: col, boxShadow: `0 0 5px ${col}`, flexShrink: 0 }} />
+              <div style={{ 
+                width: 8, height: 8, borderRadius: '50%', 
+                background: ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b'][i % 5], 
+                boxShadow: `0 0 5px currentColor`, flexShrink: 0 
+              }} />
               <span>{label}</span>
             </div>
           ))}
         </div>
-        {vectors.football && vectors.poem && (
+      </div>
+    {Object.keys(vectors).length > 1 && (
           <div style={{ marginTop: 8, fontSize: 9, color: 'var(--border2)' }}>
-            // dim[0]={vectors.football[0]}  dim[1]={vectors.football[1]}  dim[2]={vectors.football[2]}
-            {cosSim && <span style={{ marginLeft: 12 }}>cos_sim ≈ {cosSim}</span>}
+            // dimensions: 3D projection applied
+            {cosSim && <span style={{ marginLeft: 12 }}>semantic_spread ≈ {cosSim}</span>}
           </div>
         )}
-      </div>
-    </div>
-  )
-}
+      </div> {/* This closes the padding div */}
+    </div>   {/* This closes the main container div */}
+  );         {/* This closes the return statement */}
+}            {/* This closes the Stage2 function */}
 
 function StageNum({ children }) {
   return (
@@ -189,5 +193,5 @@ function StageNum({ children }) {
     }}>
       {children}
     </div>
-  )
+  );
 }
