@@ -30,68 +30,82 @@ const stopGeneration = () => {
 };
 
 const generateResponse = async () => {
-    if (loading) return;
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    setLoading(true);
-    setDisplayed('');
-    setKvCount(0);
-    setDone(false);
+  if (loading) return;
 
-    const userPrompt = schema?.tokens?.map(t => t.word).join(" ") || "";
+  // 1. Reset everything before starting
+  const controller = new AbortController();
+  abortControllerRef.current = controller;
+  
+  setLoading(true);
+  setIsGenerating(true);
+  setDisplayed('');
+  setKvCount(0);
+  setDone(false);
+  setActiveStep(0);
 
-    try {
-      const stream = await groq.chat.completions.create(
-        {
+  const userPrompt = schema?.tokens?.map(t => t.word).join(" ") || "";
+
+  try {
+    const stream = await groq.chat.completions.create(
+      {
         messages: [
           {
             role: "system",
             content: "You are an autoregressive language model completion engine. The following tokens represent the current sequence. Continue the generation naturally based on these tokens. Do not provide explanations or notes, only the completion."
-           },
-           { role: "user", content: userPrompt}
+          },
+          { role: "user", content: userPrompt }
         ],
         model: "llama-3.1-8b-instant",
-        // This links the slider from your UI to the AI's "creativity"
-        temperature: temperature, 
+        temperature: temperature,
         stream: true,
       },
-      {
-        signal: controller.signal
-      }
+      { signal: controller.signal }
     );
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          // --- THE UI SYNC LOOP ---
-          // This cycles through your top indicators: TOKENIZE -> EMBED -> etc.
-          for (let i = 0; i < STEPS.length; i++) {
-            setActiveStep(i);
-            // Small delay so the user can actually see the light move across the steps
-            await new Promise(resolve => setTimeout(resolve, 60)); 
-          }
+    for await (const chunk of stream) {
+      // 2. IMMEDIATE OUTER CHECK: Kill the stream processing if aborted
+      if (abortControllerRef.current?.signal.aborted) {
+        break;
+      }
 
-          setDisplayed((prev) => prev + content);
-          setKvCount((prev) => Math.min(prev + 1, KV_SLOTS));
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) {
+        // 3. UI SYNC LOOP: Tokenize -> Embed -> Attend -> etc.
+        for (let i = 0; i < STEPS.length; i++) {
+          // 4. INNER CHECK: Stop the light animation immediately if aborted
+          if (abortControllerRef.current?.signal.aborted) break;
+          
+          setActiveStep(i);
+          await new Promise(resolve => setTimeout(resolve, 60)); 
         }
-      }
-      setDone(true);
-    } catch (error) {
-      // Check if the error was caused by the user clicking 'Stop'
-      if (error.name === 'AbortError') {
-        console.log("Inference manually halted by user.");
-        // We don't want to show a scary red error if they just clicked stop
-      } else {
-        console.error("Inference Error:", error);
-        setDisplayed("SIGNAL_LOST: Check API Key and Network.");
-      }
-    } finally {
-      setLoading(false);
-      setActiveStep(0); 
-      setIsGenerating(false);
-      } // Make sure you reset your button state here!
-    };
 
+        // 5. Final check before updating text
+        if (abortControllerRef.current?.signal.aborted) break;
+
+        setDisplayed((prev) => prev + content);
+        setKvCount((prev) => Math.min(prev + 1, KV_SLOTS));
+      }
+    }
+    
+    // Only set done if we didn't manually abort
+    if (!abortControllerRef.current?.signal.aborted) {
+      setDone(true);
+    }
+
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log("Inference manually halted by user.");
+    } else {
+      console.error("Inference Error:", error);
+      setDisplayed("SIGNAL_LOST: Check API Key and Network.");
+    }
+  } finally {
+    setLoading(false);
+    setActiveStep(0); 
+    setIsGenerating(false);
+    abortControllerRef.current = null; // Clean up the ref
+  }
+};
    return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
