@@ -26,19 +26,16 @@ const generateResponse = async () => {
     setKvCount(0);
     setDone(false);
 
-    const availableWords = schema?.tokens?.map(t => t.word).join(", ") || "No tokens";
+    const userPrompt = schema?.tokens?.map(t => t.word).join(" ") || "";
 
     try {
       const stream = await groq.chat.completions.create({
         messages: [
           {
             role: "system",
-            content: `You are an LLM Inference Engine
-            VOCABULARY: [${availableWords}]
-            TASK: Generate in context to using ONLY the words from VOCABULARY list
-            Reflect the current temperature: ${temperature}.`
+            content: "You are an autoregressive language model completion engine. The following tokens represent the current sequence. Continue the generation naturally based on these tokens. Do not provide explanations or notes, only the completion."
            },
-           { role: "user", content: "GENERATE"}
+           { role: "user", content: userPrompt}
         ],
         model: "llama-3.1-8b-instant",
         // This links the slider from your UI to the AI's "creativity"
