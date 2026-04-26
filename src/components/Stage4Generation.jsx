@@ -53,8 +53,8 @@ const generateResponse = async () => {
         // This links the slider from your UI to the AI's "creativity"
         temperature: temperature, 
         stream: true,
-      { signal: controller.signal
-      });
+      { signal: controller.signal}
+      );
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || "";
