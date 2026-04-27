@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import OpenAI from 'openai';
 
-// Initialize Groq (The "Engine")
 const groq = new OpenAI({
   apiKey: import.meta.env.VITE_GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1",
@@ -11,192 +10,178 @@ const groq = new OpenAI({
 const STEPS = ['TOKENIZE', 'EMBED', 'ATTEND', 'DECODE', 'SAMPLE', 'APPEND'];
 const KV_SLOTS = 32;
 
-export default function Stage4Generation({ schema, temperature }) {
+export default function Stage4Generation({ schema, temperature, selectedToken }) {
   const [displayed, setDisplayed] = useState('');
   const [kvCount, setKvCount] = useState(0);
   const [activeStep, setActiveStep] = useState(0);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const abortControllerRef = useRef(null);
 
-const [isGenerating, setIsGenerating] = useState(false);
-const abortControllerRef = useRef(null);
+  // 1. Sync Logic: If Stage 3 picks a "manual" winner from the JSON, 
+  // we show it here to keep the "Tracer" visual consistent.
+  useEffect(() => {
+    if (selectedToken && !isGenerating) {
+      setDisplayed(prev => prev + " " + selectedToken.word);
+      setKvCount(prev => Math.min(prev + 1, KV_SLOTS));
+    }
+  }, [selectedToken, isGenerating]);
 
-const stopGeneration = () => {
-  if (abortControllerRef.current) {
-    abortControllerRef.current.abort();
-    setIsGenerating(false);
-    setLoading(false);
-  }
-};
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsGenerating(false);
+      setLoading(false);
+    }
+  };
 
-const generateResponse = async () => {
-  if (loading) return;
+  const generateResponse = async () => {
+    if (loading) return;
 
-  // 1. Reset everything before starting
-  const controller = new AbortController();
-  abortControllerRef.current = controller;
-  
-  setLoading(true);
-  setIsGenerating(true);
-  setDisplayed('');
-  setKvCount(0);
-  setDone(false);
-  setActiveStep(0);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    
+    setLoading(true);
+    setIsGenerating(true);
+    setDisplayed('');
+    setKvCount(0);
+    setDone(false);
+    setActiveStep(0);
 
-  const userPrompt = schema?.tokens?.map(t => t.word).join(" ") || "";
+    // Use the words from your Stage 1 Tokenization as the prompt!
+    const userPrompt = schema?.tokens?.map(t => t.word).join(" ") || "Hello";
 
-  try {
-    const stream = await groq.chat.completions.create(
-      {
-        messages: [
-          {
-            role: "system",
-            content: "You are an autoregressive language model completion engine. The following tokens represent the current sequence. Continue the generation naturally based on these tokens. Do not provide explanations or notes, only the completion."
-          },
-          { role: "user", content: userPrompt }
-        ],
-        model: "llama-3.1-8b-instant",
-        temperature: temperature,
-        stream: true,
-      },
-      { signal: controller.signal }
-    );
+    try {
+      const stream = await groq.chat.completions.create(
+        {
+          messages: [
+            {
+              role: "system",
+              content: "You are a completion engine. Continue the sequence naturally. No explanations, notes."
+            },
+            { role: "user", content: userPrompt }
+          ],
+          model: "llama-3.1-8b-instant",
+          // CRITICAL: Using the global temperature from your slider!
+          temperature: temperature, 
+          stream: true,
+        },
+        { signal: controller.signal }
+      );
 
-    for await (const chunk of stream) {
-      // 2. IMMEDIATE OUTER CHECK: Kill the stream processing if aborted
-      if (abortControllerRef.current?.signal.aborted) {
-        break;
-      }
-
-      const content = chunk.choices[0]?.delta?.content || "";
-      if (content) {
-        // 3. UI SYNC LOOP: Tokenize -> Embed -> Attend -> etc.
-        for (let i = 0; i < STEPS.length; i++) {
-          // 4. INNER CHECK: Stop the light animation immediately if aborted
-          if (abortControllerRef.current?.signal.aborted) break;
-          
-          setActiveStep(i);
-          await new Promise(resolve => setTimeout(resolve, 60)); 
-        }
-
-        // 5. Final check before updating text
+      for await (const chunk of stream) {
         if (abortControllerRef.current?.signal.aborted) break;
 
-        setDisplayed((prev) => prev + content);
-        setKvCount((prev) => Math.min(prev + 1, KV_SLOTS));
-      }
-    }
-    
-    // Only set done if we didn't manually abort
-    if (!abortControllerRef.current?.signal.aborted) {
-      setDone(true);
-    }
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          // Animated "Inference" steps for that high-tech feel
+          for (let i = 0; i < STEPS.length; i++) {
+            if (abortControllerRef.current?.signal.aborted) break;
+            setActiveStep(i);
+            await new Promise(resolve => setTimeout(resolve, 40)); 
+          }
 
-  } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log("Inference manually halted by user.");
-    } else {
-      console.error("Inference Error:", error);
-      setDisplayed("SIGNAL_LOST: Check API Key and Network.");
+          if (abortControllerRef.current?.signal.aborted) break;
+          setDisplayed((prev) => prev + content);
+          setKvCount((prev) => Math.min(prev + 1, KV_SLOTS));
+        }
+      }
+      
+      if (!abortControllerRef.current?.signal.aborted) setDone(true);
+
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error("Inference Error:", error);
+        setDisplayed("SIGNAL_LOST: Check API Key.");
+      }
+    } finally {
+      setLoading(false);
+      setActiveStep(0); 
+      setIsGenerating(false);
+      abortControllerRef.current = null;
     }
-  } finally {
-    setLoading(false);
-    setActiveStep(0); 
-    setIsGenerating(false);
-    abortControllerRef.current = null; // Clean up the ref
-  }
-};
-   return (
-    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+  };
+
+  return (
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
         <StageNum>4</StageNum>
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Real-time Inference Loop
+          Live Inference Terminal
         </span>
       </div>
 
-      <div style={{ padding: 12 }}>
-        {/* Flow diagram */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0, marginBottom: 10, rowGap: 6 }}>
+      <div style={{ padding: 12, flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* Step Visualizer */}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 12 }}>
           {STEPS.map((step, i) => (
             <React.Fragment key={step}>
               <div style={{
-                padding: '4px 8px',
-                border: `1px solid ${activeStep === i && !done && !loading ? 'var(--blue)' : 'var(--border2)'}`,
+                padding: '2px 6px',
+                border: `1px solid ${activeStep === i && isGenerating ? 'var(--blue)' : 'var(--border2)'}`,
                 borderRadius: 3,
-                fontSize: 9,
-                color: activeStep === i && !done ? 'var(--blue)' : 'var(--text3)',
-                background: activeStep === i && !done ? 'var(--blue4)' : 'var(--bg3)',
-                transition: 'all 0.2s',
-                whiteSpace: 'nowrap',
+                fontSize: 8,
+                fontWeight: activeStep === i ? 700 : 400,
+                color: activeStep === i && isGenerating ? '#fff' : 'var(--text3)',
+                background: activeStep === i && isGenerating ? 'var(--blue)' : 'transparent',
+                transition: 'all 0.1s',
               }}>
                 {step}
               </div>
-              <div style={{ color: 'var(--border2)', fontSize: 12, padding: '0 3px' }}>
-                {i < STEPS.length - 1 ? '→' : '↻'}
-              </div>
+              {i < STEPS.length - 1 && <span style={{ color: 'var(--border2)', fontSize: 10 }}>/</span>}
             </React.Fragment>
           ))}
         </div>
 
-        {/* Terminal */}
+        {/* Terminal Window */}
         <div style={{
           background: '#000',
           border: '1px solid var(--border)',
           borderRadius: 3,
-          padding: '10px 12px',
-          fontFamily: 'monospace',
+          padding: '12px',
+          fontFamily: 'JetBrains Mono, monospace',
           fontSize: 11,
-          minHeight: 100,
+          flex: 1,
           color: 'var(--green)',
-          lineHeight: 1.7,
-          whiteSpace: 'pre-wrap',
+          lineHeight: 1.6,
+          position: 'relative'
         }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
-          <button 
-            onClick={generateResponse}
-            disabled={loading}
-            style={{ color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit' }}
-          >
-            {loading ? "$ system.processing..." : "$ llm.generate()"}
-          </button>
-
-          {loading && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
             <button 
-              onClick={stopGeneration}
-              style={{ 
-                color: 'var(--red)', 
-                background: 'none', 
-                border: '1px solid var(--red)', 
-                cursor: 'pointer', 
-                fontSize: 9, 
-                padding: '2px 6px', 
-                borderRadius: 2,
-                textTransform: 'uppercase'
-              }}
+              onClick={generateResponse}
+              disabled={loading}
+              style={{ color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 700 }}
             >
-              [STOP]
+              {loading ? "> EXEC_IN_PROGRESS..." : "> RUN_INFERENCE"}
             </button>
-          )}
-        </div>
-          <br />
-          {displayed}
-          {(loading || (displayed && !done)) && <span className="cursor" style={{
-            display: 'inline-block', width: 7, height: 13, background: 'var(--green)', verticalAlign: 'text-bottom', animation: 'blink 1s step-end infinite',
-          }} />}
+            {loading && (
+              <button onClick={stopGeneration} style={{ color: 'var(--red)', background: 'none', border: '1px solid var(--red)', cursor: 'pointer', fontSize: 9, padding: '1px 4px', borderRadius: 2 }}>
+                HALT
+              </button>
+            )}
+          </div>
+          
+          <div style={{ minHeight: '60px' }}>
+            {displayed}
+            {(loading || (displayed && !done)) && <span style={{ display: 'inline-block', width: 6, height: 12, background: 'var(--green)', marginLeft: 4, animation: 'blink 1s step-end infinite' }} />}
+          </div>
         </div>
 
-        {/* KV Cache */}
-        <div style={{ fontSize: 9, color: 'var(--text3)', marginTop: 10, marginBottom: 4 }}>// KV-CACHE BUFFER</div>
-        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-          {Array.from({ length: KV_SLOTS }, (_, i) => (
-            <div key={i} style={{
-              width: 14, height: 14, borderRadius: 2,
-              background: i < kvCount ? 'var(--blue3)' : 'var(--bg4)',
-              border: `1px solid ${i < kvCount ? 'var(--blue)' : 'var(--border)'}`,
-              transition: 'all 0.3s',
-            }} />
-          ))}
+        {/* KV Cache Buffer */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 8, color: 'var(--text3)', marginBottom: 4, letterSpacing: '1px' }}>KV_CACHE_RESIDUE</div>
+          <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+            {Array.from({ length: KV_SLOTS }, (_, i) => (
+              <div key={i} style={{
+                width: 10, height: 10, borderRadius: 1,
+                background: i < kvCount ? 'var(--blue)' : 'var(--bg4)',
+                opacity: i < kvCount ? 1 : 0.3,
+                border: `1px solid ${i < kvCount ? 'var(--blue)' : 'var(--border)'}`,
+                transition: 'all 0.2s',
+              }} />
+            ))}
+          </div>
         </div>
       </div>
 

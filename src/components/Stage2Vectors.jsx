@@ -1,130 +1,139 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
+import { DEFAULT_SCHEMA, DEFAULT_JSON } from './schema.js'
+import Sidebar from './components/Sidebar.jsx'
+import Stage1Tokenization from './components/Stage1Tokenization.jsx'
+import Stage2Vectors from './components/Stage2Vectors.jsx'
+import Stage3Softmax from './components/Stage3Softmax.jsx'
+import Stage4Generation from './components/Stage4Generation.jsx'
 
-export default function Stage2Vectors({ vectors, tokens = [] }) {
-  const [rotate, setRotate] = useState({ x: 20, y: -20 })
-  const [isDragging, setIsDragging] = useState(false)
-  const containerRef = useRef(null)
-  const lastMousePos = useRef({ x: 0, y: 0 })
+function PulseDot() {
+  return (
+    <div style={{
+      width: 6, height: 6, borderRadius: '50%',
+      background: 'var(--green)',
+      animation: 'pulse-dot 1.5s ease-in-out infinite',
+    }} />
+  )
+}
 
-  // Helper to get weight from tokens for a specific word
-  const getWeight = (word) => {
-    const token = tokens.find(t => t.word.toLowerCase() === word.toLowerCase())
-    return token ? token.weight : 0.5 // Default to mid-weight if not found
-  }
-
-  const handleMouseDown = (e) => {
-    setIsDragging(true)
-    lastMousePos.current = { x: e.clientX, y: e.clientY }
-  }
-
+function Clock() {
+  const [time, setTime] = useState(new Date().toLocaleTimeString())
   useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (!isDragging) return
-      const deltaX = e.clientX - lastMousePos.current.x
-      const deltaY = e.clientY - lastMousePos.current.y
-      setRotate(prev => ({
-        x: prev.x - deltaY * 0.5,
-        y: prev.y + deltaX * 0.5
-      }))
-      lastMousePos.current = { x: e.clientX, y: e.clientY }
-    }
-    const handleMouseUp = () => setIsDragging(false)
+    const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return <span style={{ color: 'var(--blue)' }}>{time}</span>
+}
 
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
-    }
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging])
+export default function App() {
+  const [jsonText, setJsonText] = useState(DEFAULT_JSON)
+  const [schema, setSchema] = useState(DEFAULT_SCHEMA)
+  const [parseError, setParseError] = useState('')
+  const [temperature, setTemperature] = useState(DEFAULT_SCHEMA.temperature)
 
-  const keys = Object.keys(vectors)
-  const colors = ['#ff4444', '#a855f7', '#00d4ff', '#10b981', '#f59e0b']
+  // Debounced live parse
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        const parsed = JSON.parse(jsonText)
+        setSchema(parsed)
+        setTemperature(parsed.temperature ?? 0.7)
+        setParseError('')
+      } catch (e) {
+        setParseError(e.message.slice(0, 50))
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [jsonText])
+
+  const handleApply = useCallback(() => {
+    try {
+      const parsed = JSON.parse(jsonText)
+      setSchema(parsed)
+      setTemperature(parsed.temperature ?? 0.7)
+      setParseError('')
+    } catch (e) {
+      setParseError('JSON error: ' + e.message.slice(0, 40))
+    }
+  }, [jsonText])
+
+  // Temperature slider → sync back to JSON
+  const handleTempChange = useCallback(v => {
+    setTemperature(v)
+    try {
+      const parsed = JSON.parse(jsonText)
+      parsed.temperature = v
+      const updated = JSON.stringify(parsed, null, 2)
+      setJsonText(updated)
+      setSchema(parsed)
+    } catch (_) {}
+  }, [jsonText])
+
+  const tokens = schema.tokens ?? []
+  const vectors = schema.vectors ?? {}
+  const softmax = schema.softmax ?? []
 
   return (
-    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
-        <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--blue3)', border: '1px solid var(--blue)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>2</div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Attention-Weighted Space
-        </span>
-      </div>
-
-      <div 
-        ref={containerRef}
-        onMouseDown={handleMouseDown}
-        style={{ 
-          height: 320, position: 'relative', perspective: '1000px', 
-          background: '#050505', overflow: 'hidden', cursor: isDragging ? 'grabbing' : 'grab', userSelect: 'none'
-        }}
-      >
-        <div style={{
-          position: 'absolute', width: '100%', height: '100%',
-          transformStyle: 'preserve-3d',
-          transform: `translateZ(-100px) rotateX(${rotate.x}deg) rotateY(${rotate.y}deg)`,
-        }}>
-          
-          {/* Axis & Floor */}
-          <div style={{ position: 'absolute', width: 400, height: 1, background: 'rgba(255,0,0,0.2)', left: '50%', top: '50%', transform: 'translateX(-50%)' }} />
-          <div style={{ position: 'absolute', width: 1, height: 400, background: 'rgba(0,255,0,0.2)', left: '50%', top: '50%', transform: 'translateY(-50%)' }} />
-          <div style={{
-            position: 'absolute', width: 400, height: 400, left: '50%', top: '50%', marginLeft: -200, marginTop: -200,
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)`,
-            backgroundSize: '40px 40px', transform: 'rotateX(90deg) translateZ(-1px)',
-          }} />
-
-          {/* Points & Attention Labels */}
-          {keys.map((k, i) => {
-            const [vx, vy, vz] = vectors[k] || [0, 0, 0]
-            const weight = getWeight(k)
-            const col = colors[i % colors.length]
-            const tx = vx * 150 + 200 
-            const ty = vy * 150 + 200
-            const tz = (vz || 0) * 100
-
-            return (
-              <div key={k} style={{
-                position: 'absolute', left: 0, top: 0,
-                transform: `translateX(${tx}px) translateY(${ty}px) translateZ(${tz}px)`,
-                transformStyle: 'preserve-3d'
-              }}>
-                {/* Stem */}
-                <div style={{
-                  position: 'absolute', width: 1, height: tz,
-                  background: `linear-gradient(to top, transparent, ${col})`,
-                  bottom: 0, transform: 'rotateX(-90deg)', transformOrigin: 'bottom',
-                  opacity: 0.2 + (weight * 0.5)
-                }} />
-                
-                {/* Point (Size based on attention) */}
-                <div style={{
-                  width: 6 + (weight * 10), height: 6 + (weight * 10), 
-                  borderRadius: '50%', background: col,
-                  boxShadow: `0 0 ${10 + weight * 20}px ${col}`, 
-                  transform: 'translate(-50%, -50%)',
-                  opacity: 0.7 + (weight * 0.3)
-                }} />
-
-                {/* Weighted Label */}
-                <div style={{
-                  position: 'absolute', left: 12, top: -5,
-                  fontSize: 8 + (weight * 8), // Scales from 8px to 16px
-                  color: weight > 0.8 ? '#fff' : '#cbd5e1',
-                  fontWeight: weight > 0.7 ? '700' : '400',
-                  whiteSpace: 'nowrap',
-                  fontFamily: 'JetBrains Mono', 
-                  transform: `rotateY(${-rotate.y}deg) rotateX(${-rotate.x}deg)`,
-                  transition: 'font-size 0.3s ease'
-                }}>
-                  {k}
-                </div>
-              </div>
-            )
-          })}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* ── Header ── */}
+      <header style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '7px 16px',
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--bg1)',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          <PulseDot />
+          LLM Execution Tracer
+          <span style={{ color: 'var(--border2)', fontWeight: 300, marginLeft: 8 }}>
+            // prompt: "{schema.prompt_topic || "System Trace"}"
+          </span>
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 10, color: 'var(--text3)' }}>
+          <span style={{ padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 3, fontSize: 10, color: 'var(--blue)', background: 'var(--blue4)' }}>
+            claude-sonnet
+          </span>
+          <span>backend_trace_v2.1</span>
+          <Clock />
+        </div>
+      </header>
+
+      {/* ── Main ── */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Sidebar
+          jsonText={jsonText}
+          setJsonText={setJsonText}
+          onApply={handleApply}
+          parseError={parseError}
+        />
+
+        {/* Stage grid */}
+        <main style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Stage1Tokenization tokens={tokens} />
+            <Stage2Vectors vectors={vectors} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <Stage3Softmax
+              softmax={softmax}
+              temperature={temperature}
+              onTempChange={handleTempChange}
+            />
+            <Stage4Generation
+              schema={schema}
+              temperature={temperature}
+             />
+          </div>
+        </main>
       </div>
+
+      <style>{`
+        @keyframes pulse-dot {
+          0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(0,255,157,0.4); }
+          50%      { opacity:0.7; box-shadow:0 0 0 4px rgba(0,255,157,0); }
+        }
+      `}</style>
     </div>
   )
 }
