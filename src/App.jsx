@@ -1,11 +1,18 @@
 import React, { useState, useCallback } from 'react';
+import Groq from "groq-sdk"; // 1. Added Missing Import
 import Sidebar from './components/Sidebar';
 import Stage1Tokenization from './components/Stage1Tokenization';
 import Stage2Vectors from './components/Stage2Vectors';
 import Stage3Softmax from './components/Stage3Softmax';
 import Stage4Generation from './components/Stage4Generation';
-import SchemaModal from './components/SchemaModal'; // Ensure this exists!
+import SchemaModal from './components/SchemaModal'; 
 import { DEFAULT_SCHEMA } from './schema';
+
+// 2. Initialize Groq Client outside the component to avoid re-renders
+const groq = new Groq({
+  apiKey: import.meta.env.VITE_GROQ_API_KEY, 
+  dangerouslyAllowBrowser: true
+});
 
 export default function App() {
   const [schema, setSchema] = useState(DEFAULT_SCHEMA);
@@ -41,17 +48,15 @@ export default function App() {
 
   return (
     <div style={containerStyle}>
-      {/* Welcome Screen - Fully unmounts when clicked */}
       {showWelcome && (
         <div style={welcomeOverlayStyle} onClick={() => setShowWelcome(false)}>
           <div style={welcomeBoxStyle}>
-            <div style={{ color: 'var(--blue)', fontWeight: 900, marginBottom: 10 }}>[ SYSTEM_INITIALIZED ]</div>
+            <div style={{ color: '#38bdf8', fontWeight: 900, marginBottom: 10 }}>[ SYSTEM_INITIALIZED ]</div>
             <p style={{ fontSize: 11, color: '#94a3b8' }}>Click to unlock neural tracer dashboard.</p>
           </div>
         </div>
       )}
 
-      {/* Schema Modal - Triggered by Sidebar */}
       {isModalOpen && (
         <SchemaModal 
           schema={schema} 
@@ -61,8 +66,8 @@ export default function App() {
       )}
 
       <header style={headerStyle}>
-        <span style={{ color: 'var(--blue)', fontWeight: 900 }}>NEURAL_FLOW_v2</span>
-        <span style={{ color: neuralState.isProcessing ? 'var(--green)' : 'var(--text3)', fontSize: 10 }}>
+        <span style={{ color: '#38bdf8', fontWeight: 900 }}>NEURAL_FLOW_v2</span>
+        <span style={{ color: neuralState.isProcessing ? '#00ff9d' : '#475569', fontSize: 10 }}>
           {neuralState.isProcessing ? "● GEN_IN_PROGRESS" : "○ STANDBY"}
         </span>
       </header>
@@ -70,23 +75,47 @@ export default function App() {
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar 
           onSubmit={handlePromptSubmit} 
-          onOpenSchema={() => setIsModalOpen(true)} // FIXED: Wired to state
+          onOpenSchema={() => setIsModalOpen(true)} 
           temperature={temperature} 
           setTemperature={setTemperature} 
         />
         
         <main style={gridStyle}>
-          <div style={boxStyle}><Stage1Tokenization tokens={schema.tokens} /></div>
-          <div style={boxStyle}><Stage2Vectors tokens={schema.tokens} /></div>
-          <div style={boxStyle}><Stage3Softmax tokens={schema.tokens} activeTokenIndex={neuralState.activeTokenIndex} logits={neuralState.probs}/></div>
-          <div style={boxStyle}><Stage4Generation schema={schema} temperature={temperature} onNeuralUpdate={handleNeuralUpdate} /></div>
+          {/* STAGE 1: DENSE TABLE */}
+          <div style={boxStyle}>
+            <Stage1Tokenization tokens={schema.tokens} />
+          </div>
+
+          {/* STAGE 2: INTERACTIVE VECTOR SPACE */}
+          <div style={boxStyle}>
+            <Stage2Vectors tokens={schema.tokens} />
+          </div>
+
+          {/* STAGE 3: SOFTMAX DECISION HUB */}
+          <div style={boxStyle}>
+            <Stage3Softmax 
+              tokens={schema.tokens} 
+              activeTokenIndex={neuralState.activeTokenIndex} 
+              logits={neuralState.probs}
+            />
+          </div>
+
+          {/* STAGE 4: INFERENCE TERMINAL */}
+          <div style={boxStyle}>
+            <Stage4Generation 
+              schema={schema} 
+              temperature={temperature} 
+              onNeuralUpdate={handleNeuralUpdate} 
+              groq={groq} // Passed down to the terminal
+            />
+          </div>
         </main>
       </div>
     </div>
   );
 }
 
-// Styles remain consistent with your CachyOS/Niri aesthetic
+// STYLES
 const containerStyle = { height: '100vh', display: 'flex', flexDirection: 'column', background: '#020617', color: '#f8fafc', fontFamily: 'JetBrains Mono, monospace', position: 'relative' };
 const headerStyle = { height: 40, borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', fontSize: 12 };
 const gridStyle = { flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 15, padding: 15 };
