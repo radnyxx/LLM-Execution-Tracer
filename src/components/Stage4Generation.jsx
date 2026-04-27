@@ -89,44 +89,28 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
       onNeuralUpdate({ isProcessing: false, activeTokenIndex: -1 });
     }
   };
-
+  
   return (
-    <div style={{ background: '#0f172a', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #1e293b', background: '#1e293b' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-           <span style={{ fontSize: 9, fontWeight: 900, color: '#00d4ff' }}>INFERENCE_TERMINAL</span>
-           <div style={{ display: 'flex', gap: 8, fontSize: 8, fontWeight: 700 }}>
-              <span style={{ color: activeSubStep === 1 ? '#00ff9d' : '#64748b' }}>EMBED</span>
-              <span style={{ color: activeSubStep === 2 ? '#00ff9d' : '#64748b' }}>ATTEND</span>
-              <span style={{ color: activeSubStep === 3 ? '#00ff9d' : '#64748b' }}>SOFTMAX</span>
-           </div>
-        </div>
-        <button onClick={loading ? () => abortControllerRef.current?.abort() : generateResponse} style={loading ? btnHalt : btnRun}>
-          {loading ? 'HALT' : 'RUN'}
-        </button>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020617', border: '1px solid #1e293b' }}>
+      {/* --- PASTE THIS HEADER SECTION --- */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 12px', borderBottom: '1px solid #1e293b', background: '#020617' }}>
+        <div style={{ fontSize: 8, color: '#64748b' }}>STREAM: <span style={{ color: loading ? '#00ff9d' : '#475569' }}>{loading ? 'ACTIVE' : 'IDLE'}</span></div>
+        <div style={{ fontSize: 8, color: '#64748b' }}>TOK/SEC: <span style={{ color: '#00d4ff' }}>14.2</span></div>
+        <div style={{ fontSize: 8, color: '#64748b' }}>INF_MODE: <span style={{ color: '#f8fafc' }}>FP16_QUANT</span></div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', background: '#000', overflow: 'hidden' }}>
-        <div ref={scrollRef} style={{ flex: 1, padding: 12, overflowY: 'auto', whiteSpace: 'pre-wrap', color: '#00ff9d', fontSize: 11, fontFamily: 'monospace', borderRight: '1px solid #1e293b' }}>
-          {displayed}
-          {loading && <span style={cursorStyle} />}
-        </div>
+      {/* YOUR EXISTING SCROLLING TERMINAL AREA */}
+      <div style={{ flex: 1, padding: 15, overflowY: 'auto', fontFamily: 'monospace', fontSize: 12, color: '#00ff9d', lineHeight: 1.5 }}>
+        {displayed}
+        {loading && <span style={cursorStyle} />}
+      </div>
 
-        <div style={{ width: '120px', padding: '10px', background: '#020617', flexShrink: 0 }}>
-          <div style={{ fontSize: 8, color: '#00d4ff', marginBottom: 10, borderBottom: '1px solid #1e293b', paddingBottom: 4 }}>LOGITS</div>
-          {probs.map((p, i) => (
-            <div key={i} style={{ marginBottom: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 8 }}>
-                <span style={{ color: i === 0 ? '#00ff9d' : '#64748b' }}>{p.word}</span>
-                <span style={{ opacity: 0.5 }}>{Math.round(p.p * 100)}%</span>
-              </div>
-              <div style={{ height: 2, background: '#1e293b', marginTop: 2 }}>
-                <div style={{ height: '100%', width: `${p.p * 100}%`, background: i === 0 ? '#00ff9d' : '#00d4ff' }} />
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* --- PASTE THIS FOOTER SECTION --- */}
+      <div style={{ height: 20, background: '#1e293b', display: 'flex', alignItems: 'center', fontSize: 8, color: '#94a3b8', gap: 15, paddingLeft: 10 }}>
+        <span>STATUS: {loading ? 'EXECUTING_RECURSION' : 'READY'}</span>
+        <span>|</span>
+        <span>MEM_USE: 442MB</span>
+        <span style={{ marginLeft: 'auto', marginRight: 10 }}>UTF-8_READY</span>
       </div>
     </div>
   );

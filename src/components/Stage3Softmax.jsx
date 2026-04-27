@@ -7,25 +7,42 @@ export default function Stage3Softmax({ tokens = [], activeTokenIndex = -1, logi
       
       <div style={contentStyle}>
         {/* LEFT ZONE: ATTENTION HEATMAP */}
-        <div style={zoneStyle}>
-          <div style={subLabel}>ATTENTION_TRACE</div>
-          <div style={tokenGrid}>
-            {tokens.map((t, i) => {
-              const isActive = i === activeTokenIndex;
-              return (
-                <div key={i} style={{
-                  ...tokenStyle,
-                  background: isActive ? 'rgba(0, 255, 157, 0.2)' : 'rgba(30, 41, 59, 0.5)',
-                  borderColor: isActive ? '#00ff9d' : '#1e293b',
-                  color: isActive ? '#00ff9d' : '#94a3b8'
-                }}>
-                  {t.word}
+      <div style={zoneStyle}>
+        <div style={subLabel}>ATTENTION_TRACE // LAYER_WEIGHTS</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+          {tokens.map((t, i) => {
+            const isActive = i === activeTokenIndex;
+            const attentionHeight = (t.weight * 100);
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 40, fontSize: 8, color: isActive ? '#00ff9d' : '#64748b',
+                  textAlign: 'right', fontFamily: 'monospace'
+                }}>{t.word}</div>
+          
+                <div style={{ flex: 1, height: 12, background: '#1e293b', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', background: isActive ? '#00ff9d' : '#00d4ff',
+                    width: `${attentionHeight}%`, opacity: isActive ? 1 : 0.3,
+                    transition: 'width 0.5s ease'
+                  }} />
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
+          
+                <div style={{ fontSize: 8, color: '#475569', width: 25 }}>
+                  {t.weight.toFixed(2)}
+                </div>
+              </div>
+            );
+          })}
+      </div>
+    {/* NEW: Bottom Cluster detail */}
+    <div style={{ marginTop: 'auto', padding: 10, border: '1px dashed #1e293b', borderRadius: 4 }}>
+      <div style={{ fontSize: 7, color: '#475569', marginBottom: 4 }}>CURRENT_FOCUS_TOKEN</div>
+      <div style={{ fontSize: 12, color: '#00ff9d', fontFamily: 'monospace' }}>
+         {activeTokenIndex >= 0 ? tokens[activeTokenIndex].word : "NULL_IDLE"}
+      </div>
+    </div>
+  </div>
         {/* RIGHT ZONE: TOP-K CANDIDATE RACE */}
         <div style={{ ...zoneStyle, borderLeft: '1px solid #1e293b', paddingLeft: 15 }}>
           <div style={subLabel}>CANDIDATE_LOGITS (TOP_K)</div>

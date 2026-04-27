@@ -1,30 +1,80 @@
-import React from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 
 export default function Stage2Vectors({ tokens = [] }) {
-  // Constants for the SVG coordinate system
-  const size = 300;
-  const center = size / 2;
+  const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: 300, h: 300 });
+  const [isDragging, setIsDragging] = useState(false);
+  const svgRef = useRef(null);
+
+  const center = 150;
   const radius = 100;
 
+  // NEW: Generate "Ghost Clusters" only once for performance
+  const ghostNodes = useMemo(() => {
+    return Array.from({ length: 120 }).map((_, i) => ({
+      x: center + (Math.random() - 0.5) * 600,
+      y: center + (Math.random() - 0.5) * 600,
+      opacity: Math.random() * 0.15 + 0.05
+    }));
+  }, []);
+
+  const handleMouseDown = () => setIsDragging(true);
+  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    setViewBox(prev => ({
+      ...prev,
+      x: prev.x - e.movementX * (prev.w / 300),
+      y: prev.y - e.movementY * (prev.h / 300)
+    }));
+  };
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const scaleFactor = e.deltaY > 0 ? 1.1 : 0.9;
+    setViewBox(prev => {
+      const newW = Math.max(50, Math.min(1000, prev.w * scaleFactor));
+      const newH = Math.max(50, Math.min(1000, prev.h * scaleFactor));
+      return {
+        x: prev.x + (prev.w - newW) / 2,
+        y: prev.y + (prev.h - newH) / 2,
+        w: newW,
+        h: newH
+      };
+    });
+  };
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0f172a' }}>
-      <div style={{ padding: '8px 12px', background: '#1e293b', fontSize: 10, color: '#00d4ff', fontWeight: 800 }}>
-        STAGE_02 // VECTOR_EMBEDDING_SPACE
+    <div style={containerStyle}>
+      <div style={headerStyle}>
+        <span>STAGE_02 // LATENT_VECTOR_MAPPING</span>
+        <span style={statusStyle}>SPACE_DIM: 4096d</span>
       </div>
       
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          {/* Grid Circles for depth */}
-          <circle cx={center} cy={center} r={radius} fill="none" stroke="#1e293b" strokeWidth="1" />
-          <circle cx={center} cy={center} r={radius/2} fill="none" stroke="#1e293b" strokeDasharray="4" />
-          
-          {/* Axis Lines */}
-          <line x1={center} y1="20" x2={center} y2={size-20} stroke="#1e293b" strokeWidth="1" />
-          <line x1="20" y1={center} x2={size-20} y2={center} stroke="#1e293b" strokeWidth="1" />
+      <div 
+        style={{ flex: 1, cursor: isDragging ? 'grabbing' : 'grab', outline: 'none' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
+      >
+        <svg 
+          ref={svgRef}
+          width="100%" height="100%" 
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          {/* THE GHOST CLOUD: Fills the empty space */}
+          {ghostNodes.map((gn, i) => (
+            <circle key={i} cx={gn.x} cy={gn.y} r="0.8" fill="#94a3b8" style={{ opacity: gn.opacity }} />
+          ))}
+
+          {/* Reference Axis */}
+          <line x1={center} y1="-500" x2={center} y2="800" stroke="#1e293b" strokeWidth={viewBox.w/600} />
+          <line x1="-500" y1={center} x2="800" y2={center} stroke="#1e293b" strokeWidth={viewBox.w/600} />
+          <circle cx={center} cy={center} r={radius} fill="none" stroke="#1e293b" strokeWidth={viewBox.w/400} strokeDasharray="5,5" />
 
           {tokens.map((t, i) => {
-            // MATH: Distribute tokens in a spiral so they don't overlap
-            // Use Golden Angle (approx 2.399 rad) for natural distribution
             const angle = i * 2.399; 
             const r = (radius / (tokens.length || 1)) * i + 20; 
             const x = center + r * Math.cos(angle);
@@ -32,17 +82,12 @@ export default function Stage2Vectors({ tokens = [] }) {
 
             return (
               <g key={t.id || i}>
-                {/* Connection line to center (The Vector) */}
-                <line 
-                  x1={center} y1={center} x2={x} y2={y} 
-                  stroke="rgba(0, 212, 255, 0.2)" strokeWidth="0.5" 
-                />
-                {/* The Vector Point */}
-                <circle cx={x} cy={y} r="3" fill="#00d4ff" />
-                {/* Token Label */}
+                <line x1={center} y1={center} x2={x} y2={y} stroke="rgba(0, 212, 255, 0.3)" strokeWidth={viewBox.w/800} />
+                <circle cx={x} cy={y} r={2.5 * (viewBox.w/300)} fill="#00ff9d" style={{ filter: 'drop-shadow(0 0 2px #00ff9d)' }} />
                 <text 
-                  x={x + 5} y={y - 5} 
-                  fill="#94a3b8" fontSize="8" fontFamily="monospace"
+                  x={x + (4 * (viewBox.w/300))} y={y - (4 * (viewBox.w/300))} 
+                  fill="#f8fafc" fontSize={8 * (viewBox.w/300)} fontFamily="monospace"
+                  style={{ pointerEvents: 'none', userSelect: 'none', fontWeight: 600 }}
                 >
                   {t.word}
                 </text>
@@ -50,13 +95,19 @@ export default function Stage2Vectors({ tokens = [] }) {
             );
           })}
         </svg>
-
-        {tokens.length === 0 && (
-          <div style={{ position: 'absolute', color: '#334155', fontSize: 10 }}>
-            AWAITING_VECTOR_MAPPING...
-          </div>
-        )}
+      </div>
+      
+      {/* Footer detailing the coordinates */}
+      <div style={footerStyle}>
+        <span>X_OFFSET: {viewBox.x.toFixed(0)}</span>
+        <span>Y_OFFSET: {viewBox.y.toFixed(0)}</span>
+        <span>ZOOM: {(300 / viewBox.w).toFixed(2)}x</span>
       </div>
     </div>
   );
 }
+
+const containerStyle = { height: '100%', display: 'flex', flexDirection: 'column', background: '#020617', overflow: 'hidden' };
+const headerStyle = { padding: '8px 12px', background: '#1e293b', fontSize: 10, color: '#00d4ff', fontWeight: 800, display: 'flex', justifyContent: 'space-between' };
+const statusStyle = { color: '#64748b', fontSize: 9 };
+const footerStyle = { height: 24, borderTop: '1px solid #1e293b', background: '#020617', color: '#475569', fontSize: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-around', fontWeight: 800 };
