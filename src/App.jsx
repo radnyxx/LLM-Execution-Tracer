@@ -112,7 +112,7 @@ export default function App() {
         <main style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Stage1Tokenization tokens={tokens} />
-            <Stage2Vectors vectors={vectors} />
+            <Stage2Vectors vectors={vectors} tokens={tokens} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Stage3Softmax
