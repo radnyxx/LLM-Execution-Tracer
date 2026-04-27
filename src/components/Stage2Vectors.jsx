@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { DEFAULT_SCHEMA, DEFAULT_JSON } from '../schema.js'
-import Stage1Tokenization from './components/Stage1Tokenization.jsx'
-import Stage2Vectors from './components/Stage2Vectors.jsx'
-import Stage3Softmax from './components/Stage3Softmax.jsx'
-import Stage4Generation from './components/Stage4Generation.jsx'
+import Stage1Tokenization from './Stage1Tokenization.jsx'
+import Stage2Vectors from './Stage2Vectors.jsx'
+import Stage3Softmax from './Stage3Softmax.jsx'
+import Stage4Generation from './Stage4Generation.jsx'
 
 function PulseDot() {
   return (
