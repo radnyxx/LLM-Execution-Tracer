@@ -1,138 +1,81 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { DEFAULT_SCHEMA, DEFAULT_JSON } from '../schema.js'
-import Stage1Tokenization from './Stage1Tokenization.jsx'
-import Stage2Vectors from './Stage2Vectors.jsx'
-import Stage3Softmax from './Stage3Softmax.jsx'
-import Stage4Generation from './Stage4Generation.jsx'
+import React from 'react'
+// Correct path: up one level to find schema.js in /src
+import { DEFAULT_SCHEMA } from '../schema.js' 
 
-function PulseDot() {
+export default function Stage2Vectors({ vectors, tokens }) {
+  // Fallback to default if props are missing
+  const activeVectors = vectors || DEFAULT_SCHEMA.vectors || {}
+  const activeTokens = tokens || DEFAULT_SCHEMA.tokens || []
+
   return (
-    <div style={{
-      width: 6, height: 6, borderRadius: '50%',
-      background: 'var(--green)',
-      animation: 'pulse-dot 1.5s ease-in-out infinite',
-    }} />
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
+        <StageNum>2</StageNum>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Vector Embedding Space (High-Dim)
+        </span>
+      </div>
+
+      <div style={{ padding: 12, flex: 1 }}>
+        <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 10, fontFamily: 'monospace' }}>
+          // mapping_tokens_to_coordinates...
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {activeTokens.map((t, i) => {
+            const vec = activeVectors[t.word] || [0, 0, 0]
+            return (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg4)', padding: '6px 10px', borderRadius: 3, border: '1px solid var(--border2)' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, width: 60, color: 'var(--text2)' }}>{t.word}</span>
+                
+                {/* Visual coordinate bars */}
+                <div style={{ flex: 1, display: 'flex', gap: 4 }}>
+                  {vec.map((coord, ci) => (
+                    <div key={ci} style={{ flex: 1, height: 4, background: 'var(--bg3)', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ 
+                        position: 'absolute', 
+                        left: '50%', 
+                        width: `${Math.abs(coord * 50)}%`, 
+                        height: '100%', 
+                        background: ci === 0 ? '#ff4b4b' : ci === 1 ? '#4bff4b' : '#4b4bff',
+                        transform: coord < 0 ? 'translateX(-100%)' : 'translateX(0)',
+                        transition: 'all 0.5s ease'
+                      }} />
+                    </div>
+                  ))}
+                </div>
+
+                <span style={{ fontSize: 9, fontFamily: 'monospace', color: 'var(--text3)', width: 80, textAlign: 'right' }}>
+                  [{vec.map(v => v.toFixed(2)).join(', ')}]
+                </span>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* 3D Simulation Placeholder - To match your Niri vibe */}
+        <div style={{ 
+          marginTop: 15, height: 100, border: '1px dashed var(--border)', borderRadius: 4, 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          background: 'radial-gradient(circle, var(--blue3) 0%, transparent 70%)' 
+        }}>
+           <span style={{ fontSize: 9, color: 'var(--blue)', letterSpacing: '2px' }}>[ 3D_PROJECTION_ACTIVE ]</span>
+        </div>
+      </div>
+    </div>
   )
 }
 
-function Clock() {
-  const [time, setTime] = useState(new Date().toLocaleTimeString())
-  useEffect(() => {
-    const t = setInterval(() => setTime(new Date().toLocaleTimeString()), 1000)
-    return () => clearInterval(t)
-  }, [])
-  return <span style={{ color: 'var(--blue)' }}>{time}</span>
-}
-
-export default function App() {
-  const [jsonText, setJsonText] = useState(DEFAULT_JSON)
-  const [schema, setSchema] = useState(DEFAULT_SCHEMA)
-  const [parseError, setParseError] = useState('')
-  const [temperature, setTemperature] = useState(DEFAULT_SCHEMA.temperature)
-
-  // Debounced live parse
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        const parsed = JSON.parse(jsonText)
-        setSchema(parsed)
-        setTemperature(parsed.temperature ?? 0.7)
-        setParseError('')
-      } catch (e) {
-        setParseError(e.message.slice(0, 50))
-      }
-    }, 400)
-    return () => clearTimeout(t)
-  }, [jsonText])
-
-  const handleApply = useCallback(() => {
-    try {
-      const parsed = JSON.parse(jsonText)
-      setSchema(parsed)
-      setTemperature(parsed.temperature ?? 0.7)
-      setParseError('')
-    } catch (e) {
-      setParseError('JSON error: ' + e.message.slice(0, 40))
-    }
-  }, [jsonText])
-
-  // Temperature slider → sync back to JSON
-  const handleTempChange = useCallback(v => {
-    setTemperature(v)
-    try {
-      const parsed = JSON.parse(jsonText)
-      parsed.temperature = v
-      const updated = JSON.stringify(parsed, null, 2)
-      setJsonText(updated)
-      setSchema(parsed)
-    } catch (_) {}
-  }, [jsonText])
-
-  const tokens = schema.tokens ?? []
-  const vectors = schema.vectors ?? {}
-  const softmax = schema.softmax ?? []
-
+function StageNum({ children }) {
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* ── Header ── */}
-      <header style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '7px 16px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--bg1)',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          <PulseDot />
-          LLM Execution Tracer
-          <span style={{ color: 'var(--border2)', fontWeight: 300, marginLeft: 8 }}>
-            // prompt: "{schema.prompt_topic || "System Trace"}"
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 10, color: 'var(--text3)' }}>
-          <span style={{ padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 3, fontSize: 10, color: 'var(--blue)', background: 'var(--blue4)' }}>
-            claude-sonnet
-          </span>
-          <span>backend_trace_v2.1</span>
-          <Clock />
-        </div>
-      </header>
-
-      {/* ── Main ── */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar
-          jsonText={jsonText}
-          setJsonText={setJsonText}
-          onApply={handleApply}
-          parseError={parseError}
-        />
-
-        {/* Stage grid */}
-        <main style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Stage1Tokenization tokens={tokens} />
-            <Stage2Vectors vectors={vectors} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Stage3Softmax
-              softmax={softmax}
-              temperature={temperature}
-              onTempChange={handleTempChange}
-            />
-            <Stage4Generation
-              schema={schema}
-              temperature={temperature}
-             />
-          </div>
-        </main>
-      </div>
-
-      <style>{`
-        @keyframes pulse-dot {
-          0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(0,255,157,0.4); }
-          50%      { opacity:0.7; box-shadow:0 0 0 4px rgba(0,255,157,0); }
-        }
-      `}</style>
+    <div style={{
+      width: 18, height: 18, borderRadius: '50%',
+      background: 'var(--blue3)', border: '1px solid var(--blue)',
+      color: 'var(--blue)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0,
+    }}>
+      {children}
     </div>
   )
 }

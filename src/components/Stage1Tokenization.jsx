@@ -51,7 +51,7 @@ export default function Stage1({ tokens }) {
             </tr>
           </thead>
           <tbody>
-            {tokens.map((t, i) => {
+            {tokens && tokens.map((t, i) => {
               const col = heatColor(t.weight ?? 0)
               const w = t.weight ?? 0
               return (

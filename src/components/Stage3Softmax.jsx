@@ -55,8 +55,8 @@ export default function Stage3({ softmax, temperature, topP = 0.7, onTempChange,
 
   // Sync the winner back to the LLM Generation stage
   useEffect(() => {
-    if (softmax[winnerIndex]) {
-      onTokenSelected?.(softmax[winnerIndex])
+    if (softmax && softmax.length > 0 && softmax[winnerIndex]) {
+      onTokenSelected?.(softmax[winnerIndex]);
     }
   }, [winnerIndex, onTokenSelected, softmax])
 
