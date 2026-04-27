@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { DEFAULT_SCHEMA, DEFAULT_JSON } from '../schema.js'
-import Sidebar from './components/Sidebar.jsx'
 import Stage1Tokenization from './components/Stage1Tokenization.jsx'
 import Stage2Vectors from './components/Stage2Vectors.jsx'
 import Stage3Softmax from './components/Stage3Softmax.jsx'
