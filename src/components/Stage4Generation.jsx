@@ -18,7 +18,6 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
     const promptText = schema?.tokens?.map(t => t.word).join(" ") || "Hello";
 
     try {
-      // USING DIRECT FETCH - NO SDK NEEDED
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -54,7 +53,6 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
               if (content) {
                 setDisplayed((prev) => prev + content);
                 
-                // SEND DATA BACK TO APP.JSX
                 onNeuralUpdate({
                   probs: [
                     { word: content.trim() || "...", p: 0.85 },
@@ -64,14 +62,14 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
                   activeTokenIndex: Math.floor(Math.random() * (schema?.tokens?.length || 1)),
                   isProcessing: true
                 });
-                await delay(50); 
+                await delay(60); 
               }
-            } catch (e) { /* partial chunk */ }
+            } catch (e) {}
           }
         }
       }
     } catch (e) {
-      if (e.name !== 'AbortError') setDisplayed(p => p + "\n[SYSTEM_ERROR]");
+      if (e.name !== 'AbortError') setDisplayed(p => p + "\n[SYSTEM_ERROR_COMM_LINK_SEVERED]");
     } finally {
       setLoading(false);
       onNeuralUpdate({ isProcessing: false, activeTokenIndex: -1 });
@@ -79,16 +77,45 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#020617' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 12px', borderBottom: '1px solid #1e293b', background: '#0f172a' }}>
-        <div style={{ fontSize: 8, color: '#64748b' }}>STREAM: <span style={{ color: loading ? '#00ff9d' : '#475569' }}>{loading ? 'ACTIVE' : 'IDLE'}</span></div>
-        <button onClick={generateResponse} disabled={loading} style={{ background: '#00ff9d', border: 'none', padding: '2px 8px', fontSize: 8, cursor: 'pointer' }}>
-          RUN
+    <div style={terminalContainer}>
+      {/* HEADER: System Metrics */}
+      <div style={headerMetrics}>
+        <div style={metricItem}>
+          STREAM: <span style={{ color: loading ? '#00ff9d' : '#475569' }}>{loading ? 'ACTIVE' : 'IDLE'}</span>
+        </div>
+        <div style={metricItem}>
+          TOK/SEC: <span style={{ color: '#00d4ff' }}>{loading ? '14.2' : '0.0'}</span>
+        </div>
+        <div style={metricItem}>
+          INF_MODE: <span style={{ color: '#f8fafc' }}>FP16_QUANT</span>
+        </div>
+        <button onClick={generateResponse} disabled={loading} style={runBtn}>
+          {loading ? "PROCESSSING..." : "RUN_INFERENCE"}
         </button>
       </div>
-      <div style={{ flex: 1, padding: 15, overflowY: 'auto', color: '#00ff9d', fontFamily: 'monospace', fontSize: 11 }}>
-        {displayed || "> READY..."}
+
+      {/* TERMINAL: The Output Area */}
+      <div style={outputArea}>
+        {displayed || (loading ? "" : "> AWAITING_INPUT_SEQUENCE...")}
+        {loading && <span style={cursorStyle} />}
+      </div>
+
+      {/* FOOTER: Hardware Specs */}
+      <div style={footerMetrics}>
+        <span>STATUS: {loading ? 'EXECUTING_RECURSION' : 'SYSTEM_READY'}</span>
+        <span>|</span>
+        <span>MEM_USE: {loading ? '442MB' : '12MB'}</span>
+        <span style={{ marginLeft: 'auto', marginRight: 10 }}>UTF-8_ENCODED</span>
       </div>
     </div>
   );
 }
+
+// STYLES
+const terminalContainer = { height: '100%', display: 'flex', flexDirection: 'column', background: '#020617', overflow: 'hidden' };
+const headerMetrics = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 12px', borderBottom: '1px solid #1e293b', background: '#0f172a' };
+const metricItem = { fontSize: 8, color: '#64748b', fontFamily: 'monospace' };
+const runBtn = { background: '#00ff9d', color: '#020617', border: 'none', borderRadius: 2, padding: '4px 12px', fontSize: 9, fontWeight: 900, cursor: 'pointer' };
+const outputArea = { flex: 1, padding: 15, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, color: '#00ff9d', lineHeight: 1.6, whiteSpace: 'pre-wrap' };
+const footerMetrics = { height: 20, background: '#1e293b', display: 'flex', alignItems: 'center', fontSize: 8, color: '#94a3b8', gap: 15, paddingLeft: 10, fontFamily: 'monospace' };
+const cursorStyle = { display: 'inline-block', width: 6, height: 12, background: '#00ff9d', marginLeft: 4 };
