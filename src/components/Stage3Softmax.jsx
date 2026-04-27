@@ -1,47 +1,70 @@
 import React from 'react';
 
-export default function Stage3Softmax({ tokens = [], activeTokenIndex = -1 }) {
+export default function Stage3Softmax({ tokens = [], activeTokenIndex = -1, logits = [] }) {
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#0f172a' }}>
-      <div style={{ padding: '8px 12px', background: '#1e293b', fontSize: 10, color: '#00d4ff', fontWeight: 800, borderBottom: '1px solid #1e293b' }}>
-        STAGE_03 // NEURAL_ATTENTION_TRACE
-      </div>
+    <div style={containerStyle}>
+      <div style={headerStyle}>STAGE_03 // SOFTMAX_DECISION_HUB</div>
       
-      <div style={{ flex: 1, padding: 12, overflowY: 'auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 6 }}>
-          {tokens.map((t, i) => {
-            const isActive = i === activeTokenIndex;
-            // Calculate "Attention Heat" based on distance from the currently processed token
-            const distance = activeTokenIndex === -1 ? 100 : Math.abs(i - activeTokenIndex);
-            const heat = isActive ? 1 : Math.max(0.1, 0.8 - (distance * 0.2));
-
-            return (
-              <div key={i} style={{
-                height: 45,
-                background: isActive ? 'rgba(0, 255, 157, 0.25)' : `rgba(0, 212, 255, ${heat * 0.1})`,
-                border: `1px solid ${isActive ? '#00ff9d' : '#1e293b'}`,
-                borderRadius: 2,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                transition: 'all 0.1s ease',
-                boxShadow: isActive ? '0 0 15px rgba(0, 255, 157, 0.15)' : 'none'
-              }}>
-                <span style={{ fontSize: 8, fontWeight: 800, color: isActive ? '#00ff9d' : '#94a3b8' }}>
-                  {t.word.toUpperCase()}
-                </span>
-                <div style={{ 
-                  height: 2, width: '60%', background: isActive ? '#00ff9d' : '#334155', 
-                  marginTop: 4, opacity: heat 
-                }} />
-              </div>
-            );
-          })}
-        </div>
-        {tokens.length === 0 && (
-          <div style={{ color: '#64748b', fontSize: 10, fontStyle: 'italic', textAlign: 'center', marginTop: 20 }}>
-            INITIALIZE_TOKENS_TO_START_TRACE
+      <div style={contentStyle}>
+        {/* LEFT ZONE: ATTENTION HEATMAP */}
+        <div style={zoneStyle}>
+          <div style={subLabel}>ATTENTION_TRACE</div>
+          <div style={tokenGrid}>
+            {tokens.map((t, i) => {
+              const isActive = i === activeTokenIndex;
+              return (
+                <div key={i} style={{
+                  ...tokenStyle,
+                  background: isActive ? 'rgba(0, 255, 157, 0.2)' : 'rgba(30, 41, 59, 0.5)',
+                  borderColor: isActive ? '#00ff9d' : '#1e293b',
+                  color: isActive ? '#00ff9d' : '#94a3b8'
+                }}>
+                  {t.word}
+                </div>
+              );
+            })}
           </div>
-        )}
+        </div>
+
+        {/* RIGHT ZONE: TOP-K CANDIDATE RACE */}
+        <div style={{ ...zoneStyle, borderLeft: '1px solid #1e293b', paddingLeft: 15 }}>
+          <div style={subLabel}>CANDIDATE_LOGITS (TOP_K)</div>
+          <div style={logitList}>
+            {logits.length > 0 ? logits.map((l, i) => (
+              <div key={i} style={logitRow}>
+                <div style={logitInfo}>
+                  <span style={{ color: i === 0 ? '#00ff9d' : '#f8fafc' }}>{l.word}</span>
+                  <span style={{ opacity: 0.5 }}>{(l.p * 100).toFixed(1)}%</span>
+                </div>
+                <div style={barContainer}>
+                  <div style={{ 
+                    ...barStyle, 
+                    width: `${l.p * 100}%`,
+                    background: i === 0 ? '#00ff9d' : '#00d4ff' 
+                  }} />
+                </div>
+              </div>
+            )) : (
+              <div style={emptyText}>AWAITING_INFERENCE...</div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
+// STYLES
+const containerStyle = { height: '100%', display: 'flex', flexDirection: 'column', background: '#0f172a' };
+const headerStyle = { padding: '8px 12px', background: '#1e293b', fontSize: 10, color: '#00d4ff', fontWeight: 800 };
+const contentStyle = { flex: 1, display: 'flex', padding: 12, gap: 15, overflow: 'hidden' };
+const zoneStyle = { flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' };
+const subLabel = { fontSize: 8, color: '#64748b', fontWeight: 800, borderBottom: '1px solid #1e293b', paddingBottom: 4 };
+const tokenGrid = { display: 'flex', flexWrap: 'wrap', gap: 4 };
+const tokenStyle = { padding: '4px 8px', fontSize: 9, borderRadius: 2, border: '1px solid transparent', transition: 'all 0.2s' };
+const logitList = { display: 'flex', flexDirection: 'column', gap: 12 };
+const logitRow = { display: 'flex', flexDirection: 'column', gap: 4 };
+const logitInfo = { display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: 'monospace' };
+const barContainer = { height: 4, background: '#1e293b', borderRadius: 2, overflow: 'hidden' };
+const barStyle = { height: '100%', transition: 'width 0.3s ease-out' };
+const emptyText = { fontSize: 10, color: '#334155', fontStyle: 'italic', marginTop: 20 };

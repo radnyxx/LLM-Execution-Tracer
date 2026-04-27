@@ -32,10 +32,12 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [displayed]);
 
+  const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
   const generateResponse = async () => {
     if (loading || !groq) return;
 
-    setDisplayed(''); 
+    setDisplayed('');
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setLoading(true);
@@ -76,6 +78,8 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
             activeTokenIndex: Math.floor(Math.random() * schema.tokens.length),
             isProcessing: true
           });
+          const isPunctuation = /[.!?]/.test(content);
+          await delay(isPunctuation ? 300 : 60);
         }
       }
     } catch (error) {

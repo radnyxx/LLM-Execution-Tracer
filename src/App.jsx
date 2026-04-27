@@ -78,7 +78,7 @@ export default function App() {
         <main style={gridStyle}>
           <div style={boxStyle}><Stage1Tokenization tokens={schema.tokens} /></div>
           <div style={boxStyle}><Stage2Vectors tokens={schema.tokens} /></div>
-          <div style={boxStyle}><Stage3Softmax tokens={schema.tokens} activeTokenIndex={neuralState.activeTokenIndex} /></div>
+          <div style={boxStyle}><Stage3Softmax tokens={schema.tokens} activeTokenIndex={neuralState.activeTokenIndex} logits={neuralState.probs}/></div>
           <div style={boxStyle}><Stage4Generation schema={schema} temperature={temperature} onNeuralUpdate={handleNeuralUpdate} /></div>
         </main>
       </div>
