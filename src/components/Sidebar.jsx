@@ -1,90 +1,117 @@
 import React from 'react'
 
-export default function Sidebar({ jsonText, setJsonText, onApply, parseError }) {
+export default function Sidebar({ 
+  promptInput, 
+  setPromptInput, 
+  onSubmit, 
+  onOpenSchema, 
+  temperature, 
+  setTemperature 
+}) {
   return (
-    <aside style={{
-      width: 248,
-      flexShrink: 0,
-      borderRight: '1px solid var(--border)',
-      display: 'flex',
-      flexDirection: 'column',
+    <div style={{ 
+      width: 280, 
+      borderRight: '1px solid var(--border)', 
+      padding: '20px 16px', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      gap: 24,
       background: 'var(--bg1)',
+      flexShrink: 0
     }}>
-      {/* Header */}
-      <div style={{
-        padding: '8px 12px',
-        borderBottom: '1px solid var(--border)',
-        fontSize: 10,
-        color: 'var(--text3)',
-        letterSpacing: '0.1em',
-        textTransform: 'uppercase',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexShrink: 0,
-      }}>
-        <span>JSON Sandbox</span>
-        {parseError
-          ? <span style={{ color: 'var(--red)', fontSize: 9 }}>✕ error</span>
-          : <span style={{ color: 'var(--green)', fontSize: 9 }}>✓ valid</span>
-        }
+      {/* SECTION 1: PROMPT INPUT */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 4, height: 12, background: 'var(--blue)' }} />
+          <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--blue)', letterSpacing: '0.05em' }}>
+            INPUT_SEQUENCE
+          </span>
+        </div>
+        
+        <textarea 
+          value={promptInput}
+          onChange={(e) => setPromptInput(e.target.value)}
+          placeholder="Enter a prompt to tokenize..."
+          style={{ 
+            width: '100%', 
+            height: 100, 
+            background: 'var(--bg4)', 
+            border: '1px solid var(--border2)', 
+            borderRadius: 4,
+            color: 'var(--green)',
+            padding: '12px',
+            fontSize: 11,
+            fontFamily: 'var(--font)',
+            resize: 'none',
+            outline: 'none',
+            boxSizing: 'border-box'
+          }}
+        />
+
+        <button 
+          onClick={() => onSubmit(promptInput)}
+          style={{ 
+            width: '100%',
+            background: 'var(--blue)',
+            color: '#000',
+            border: 'none',
+            padding: '10px',
+            borderRadius: 3,
+            fontWeight: 800,
+            fontSize: 10,
+            cursor: 'pointer',
+            textTransform: 'uppercase'
+          }}
+        >
+          Initialize Tokens
+        </button>
       </div>
 
-      {/* Editor */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
-          <textarea
-            value={jsonText}
-            onChange={e => setJsonText(e.target.value)}
-            spellCheck={false}
-            aria-label="JSON Schema Editor"
-            style={{
-              width: '100%',
-              minHeight: 400,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: '#7dd3fc',
-              fontFamily: 'var(--font)',
-              fontSize: 10,
-              lineHeight: 1.65,
-              resize: 'none',
-            }}
+      {/* SECTION 2: PARAMETERS */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 4, height: 12, background: 'var(--text3)' }} />
+          <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text1)', letterSpacing: '0.05em' }}>
+            HYPERPARAMETERS
+          </span>
+        </div>
+
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text3)', marginBottom: 6 }}>
+            <span>TEMPERATURE (RANDOMNESS)</span>
+            <span style={{ color: 'var(--blue)' }}>{temperature.toFixed(2)}</span>
+          </div>
+          <input 
+            type="range" min="0.1" max="2.0" step="0.01" 
+            value={temperature} 
+            onChange={(e) => setTemperature(parseFloat(e.target.value))}
+            style={{ width: '100%', accentColor: 'var(--blue)', cursor: 'pointer' }}
           />
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 6 }}>
-          // edit schema → live update
-        </div>
-        <button
-          onClick={onApply}
-          style={{
+      {/* SECTION 3: ADVANCED ACCESS */}
+      <div style={{ marginTop: 'auto' }}>
+        <button 
+          onClick={onOpenSchema}
+          style={{ 
             width: '100%',
-            padding: '6px 0',
-            background: 'var(--blue3)',
-            border: '1px solid var(--blue)',
-            color: 'var(--blue)',
-            fontFamily: 'var(--font)',
-            fontSize: 10,
-            borderRadius: 3,
+            background: 'transparent',
+            border: '1px solid var(--border2)',
+            color: 'var(--text3)',
+            padding: '8px',
+            fontSize: 9,
             cursor: 'pointer',
-            letterSpacing: '0.05em',
-            transition: 'background 0.2s',
+            fontFamily: 'var(--font)',
+            borderRadius: 2
           }}
-          onMouseEnter={e => e.target.style.background = 'rgba(0,212,255,0.2)'}
-          onMouseLeave={e => e.target.style.background = 'var(--blue3)'}
         >
-          ▶ APPLY SCHEMA
+          [ OPEN_SCHEMA_MODAL ]
         </button>
-        {parseError && (
-          <div style={{ color: 'var(--red)', fontSize: 9, marginTop: 4, wordBreak: 'break-word' }}>
-            {parseError}
-          </div>
-        )}
+        <div style={{ fontSize: 8, color: 'var(--border2)', textAlign: 'center', marginTop: 10 }}>
+          BUILD_VER: 2026.4.27 // STABLE
+        </div>
       </div>
-    </aside>
+    </div>
   )
 }

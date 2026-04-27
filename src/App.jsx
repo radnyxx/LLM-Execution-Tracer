@@ -3,8 +3,9 @@ import { DEFAULT_SCHEMA, DEFAULT_JSON } from './schema.js'
 import Sidebar from './components/Sidebar.jsx'
 import Stage1Tokenization from './components/Stage1Tokenization.jsx'
 import Stage2Vectors from './components/Stage2Vectors.jsx'
-import Stage3Softmax from './components/Stage3Softmax.jsx'
+import Stage3Softmax from './components/Stage3Softmax.jsx' // Now our Description component
 import Stage4Generation from './components/Stage4Generation.jsx'
+import SchemaModal from './components/SchemaModal.jsx' // New component
 
 function PulseDot() {
   return (
@@ -26,141 +27,182 @@ function Clock() {
 }
 
 export default function App() {
-  const [jsonText, setJsonText] = useState(DEFAULT_JSON)
+  // --- UI STATES ---
+  const [showWelcome, setShowWelcome] = useState(true)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [promptInput, setPromptInput] = useState("")
+
+  // --- DATA STATES ---
   const [schema, setSchema] = useState(DEFAULT_SCHEMA)
-  const [parseError, setParseError] = useState('')
-  
-  // Logic States
-  const [temperature, setTemperature] = useState(DEFAULT_SCHEMA.temperature)
-  const [topP, setTopP] = useState(0.7) // New Nucleus Sampling state
-  const [selectedToken, setSelectedToken] = useState(null)
+  const [temperature, setTemperature] = useState(DEFAULT_SCHEMA.temperature || 0.7)
+  const [topP, setTopP] = useState(0.7)
 
-  // Debounced live parse for the JSON Sandbox
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        const parsed = JSON.parse(jsonText)
-        setSchema(parsed)
-        setTemperature(parsed.temperature ?? 0.7)
-        setParseError('')
-      } catch (e) {
-        setParseError(e.message.slice(0, 50))
-      }
-    }, 400)
-    return () => clearTimeout(t)
-  }, [jsonText])
-
-  const handleApply = useCallback(() => {
-    try {
-      const parsed = JSON.parse(jsonText)
-      setSchema(parsed)
-      setTemperature(parsed.temperature ?? 0.7)
-      setParseError('')
-    } catch (e) {
-      setParseError('JSON error: ' + e.message.slice(0, 40))
-    }
-  }, [jsonText])
-
-  // Sync temperature slider back to JSON text
-  const handleTempChange = useCallback(v => {
-    setTemperature(v)
-    try {
-      const parsed = JSON.parse(jsonText)
-      parsed.temperature = v
-      setJsonText(JSON.stringify(parsed, null, 2))
-      setSchema(parsed)
-    } catch (_) {}
-  }, [jsonText])
+  // --- LOGIC: CONVERT PROMPT TO SCHEMA ---
+  const handlePromptSubmit = (text) => {
+    if (!text.trim()) return;
+    const words = text.trim().split(/\s+/);
+    const newTokens = words.map((w, i) => ({
+      word: w,
+      id: Math.floor(Math.random() * 50000),
+      weight: parseFloat((Math.random() * 0.9).toFixed(2))
+    }));
+    
+    setSchema(prev => ({
+      ...prev,
+      prompt_topic: text.slice(0, 30) + "...",
+      tokens: newTokens
+    }));
+  };
 
   const tokens = schema.tokens ?? []
   const vectors = schema.vectors ?? {}
-  const softmax = schema.softmax ?? []
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg1)', color: 'var(--text1)' }}>
-      {/* Header */}
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg1)', color: 'var(--text1)', overflow: 'hidden' }}>
+      
+      {/* WELCOME OVERLAY */}
+      {showWelcome && (
+        <div className="welcome-overlay" onClick={() => setShowWelcome(false)}>
+          <div className="welcome-box">
+            <h1 style={{ color: 'var(--blue)', fontSize: 18, marginBottom: 10 }}>SYSTEM_INITIALIZED</h1>
+            <p style={{ color: 'var(--text3)', fontSize: 11, lineHeight: 1.6 }}>
+              Welcome to the LLM Execution Tracer. <br />
+              Observe the geometric transformation of language <br />
+              into high-dimensional neural vectors.
+            </p>
+            <div style={{ marginTop: 20, fontSize: 9, color: 'var(--green)' }}>[ CLICK TO ENTER ]</div>
+          </div>
+        </div>
+      )}
+
+      {/* SCHEMA MODAL */}
+      {isModalOpen && (
+        <SchemaModal 
+          schema={schema} 
+          setSchema={setSchema} 
+          onClose={() => setIsModalOpen(false)} 
+        />
+      )}
+
+      {/* HEADER */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '7px 16px', borderBottom: '1px solid var(--border)',
-        background: 'var(--bg1)', flexShrink: 0,
+        background: 'var(--bg1)', flexShrink: 0, zIndex: 10
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           <PulseDot />
           LLM Execution Tracer
           <span style={{ color: 'var(--border2)', fontWeight: 300, marginLeft: 8 }}>
-            // prompt: "{schema.prompt_topic || "System Trace"}"
+            // prompt: "{schema.prompt_topic || "Awaiting Input..."}"
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 10, color: 'var(--text3)' }}>
-          <span style={{ padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 3, fontSize: 10, color: 'var(--blue)', background: 'var(--blue4)' }}>
+          <span style={{ padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 3, color: 'var(--blue)', background: 'var(--blue4)' }}>
             llama-3.1-8b
           </span>
           <Clock />
         </div>
       </header>
 
-      {/* Main Layout */}
+      {/* MAIN CONTENT AREA */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar
-          jsonText={jsonText}
-          setJsonText={setJsonText}
-          onApply={handleApply}
-          parseError={parseError}
+        
+        {/* REPURPOSED SIDEBAR (Prompt & Controls) */}
+        <Sidebar 
+          promptInput={promptInput}
+          setPromptInput={setPromptInput}
+          onSubmit={handlePromptSubmit}
+          onOpenSchema={() => setIsModalOpen(true)}
+          temperature={temperature}
+          setTemperature={setTemperature}
         />
 
-        <main style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Top Row: Tokenization & Vectors */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {/* DASHBOARD GRID */}
+        <main style={{ 
+          flex: 1, 
+          padding: 12, 
+          display: 'grid',
+          gap: 12,
+          overflowY: 'auto',
+          gridTemplateColumns: '1fr 1.2fr', // Left Col: Steps, Right Col: Visuals
+          gridTemplateRows: 'auto auto 1fr', // Stack Stages + Guide
+          gridTemplateAreas: `
+            "stage1 stage2"
+            "stage4 stage2"
+            "stage3 stage3"
+          `
+        }}>
+          {/* STAGE 1: TOKENIZATION */}
+          <section style={{ gridArea: 'stage1' }}>
             <Stage1Tokenization tokens={tokens} />
-            <Stage2Vectors vectors={vectors} tokens={tokens} />
-          </div>
+          </section>
 
-          {/* Bottom Row: Softmax & Live Generation */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <Stage3Softmax
-              softmax={softmax}
-              temperature={temperature}
-              topP={topP}
-              onTempChange={handleTempChange}
-              onTokenSelected={(token) => {
-                // Clicking a bar in Stage 3 injects it into Stage 4
-                setSelectedToken({ ...token, timestamp: Date.now() });
-              }}
-            />
+          {/* STAGE 4: TERMINAL (Under Stage 1) */}
+          <section style={{ gridArea: 'stage4' }}>
             <Stage4Generation
               schema={schema}
               temperature={temperature}
-              selectedToken={selectedToken}
             />
-          </div>
+          </section>
 
-          {/* Nucleus Control Overlay (Global) */}
-          <div style={{ 
-            marginTop: 'auto', padding: '10px', background: 'var(--bg2)', 
-            border: '1px solid var(--border)', borderRadius: 4, display: 'flex', 
-            alignItems: 'center', gap: 20 
-          }}>
-             <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>
-                  <span>GLOBAL_NUCLEUS_THRESHOLD (TOP-P)</span>
-                  <span style={{ color: 'var(--blue)' }}>{topP.toFixed(2)}</span>
-                </div>
-                <input 
-                  type="range" min="0.1" max="1.0" step="0.01" 
-                  value={topP} 
-                  onChange={(e) => setTopP(parseFloat(e.target.value))}
-                  style={{ width: '100%', accentColor: 'var(--blue)', cursor: 'pointer' }}
-                />
-             </div>
-          </div>
+          {/* STAGE 2: VECTORS (Tall on the right) */}
+          <section style={{ gridArea: 'stage2', height: '100%' }}>
+            <Stage2Vectors vectors={vectors} tokens={tokens} />
+          </section>
+
+          {/* STAGE 3: DOCUMENTATION (Bottom Spanner) */}
+          <section style={{ gridArea: 'stage3' }}>
+            <Stage3Softmax />
+          </section>
         </main>
       </div>
+
+      {/* GLOBAL NUCLEUS FOOTER */}
+      <footer style={{ 
+        padding: '8px 16px', background: 'var(--bg2)', 
+        borderTop: '1px solid var(--border)', display: 'flex', 
+        alignItems: 'center', gap: 20, height: 40 
+      }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+            <span style={{ fontSize: 9, color: 'var(--text3)' }}>GLOBAL_NUCLEUS_THRESHOLD (TOP-P)</span>
+            <input 
+              type="range" min="0.1" max="1.0" step="0.01" 
+              value={topP} 
+              onChange={(e) => setTopP(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: 'var(--blue)', cursor: 'pointer', height: 4 }}
+            />
+            <span style={{ color: 'var(--blue)', fontSize: 10, width: 30 }}>{topP.toFixed(2)}</span>
+          </div>
+      </footer>
 
       <style>{`
         @keyframes pulse-dot {
           0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(0,255,157,0.4); }
           50%      { opacity:0.7; box-shadow:0 0 0 4px rgba(0,255,157,0); }
         }
+        
+        .welcome-overlay {
+          position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+          background: rgba(2, 6, 23, 0.98);
+          display: flex; align-items: center; justify-content: center;
+          z-index: 1000; cursor: pointer;
+        }
+
+        .welcome-box {
+          border: 1px solid var(--blue);
+          background: var(--bg2);
+          padding: 40px;
+          text-align: center;
+          max-width: 400px;
+          animation: welcomeFade 0.8s ease-out;
+        }
+
+        @keyframes welcomeFade {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
         :root {
           --font: 'JetBrains Mono', monospace;
           --bg1: #020617;
@@ -170,7 +212,7 @@ export default function App() {
           --border: #1e293b;
           --border2: #334155;
           --blue: #00d4ff;
-          --blue4: rgba(0, 212, 255, 0.05);
+          --blue4: rgba(0, 212, 255, 0.1);
           --green: #00ff9d;
           --red: #ff4b4b;
           --text1: #f8fafc;
