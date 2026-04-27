@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { DEFAULT_SCHEMA, DEFAULT_JSON } from './schema.js'
+import { DEFAULT_SCHEMA, DEFAULT_JSON } from './schema.js' 
 import Sidebar from './components/Sidebar.jsx'
 import Stage1Tokenization from './components/Stage1Tokenization.jsx'
 import Stage2Vectors from './components/Stage2Vectors.jsx'
 import Stage3Softmax from './components/Stage3Softmax.jsx'
 import Stage4Generation from './components/Stage4Generation.jsx'
 
-// UI Utility: The status indicator in the header
 function PulseDot() {
   return (
     <div style={{
@@ -17,7 +16,6 @@ function PulseDot() {
   )
 }
 
-// UI Utility: System clock for the "Rice" aesthetic
 function Clock() {
   const [time, setTime] = useState(new Date().toLocaleTimeString())
   useEffect(() => {
@@ -28,22 +26,22 @@ function Clock() {
 }
 
 export default function App() {
-  const [jsonText, setJsonText] = useState(DEFAULT_JSON);
-  const [schema, setSchema] = useState(DEFAULT_SCHEMA);
-  const [parseError, setParseError] = useState('');
-  const [temperature, setTemperature] = useState(0.7);
-  const [selectedToken, setSelectedToken] = useState(null);
+  const [jsonText, setJsonText] = useState(DEFAULT_JSON)
+  const [schema, setSchema] = useState(DEFAULT_SCHEMA)
+  const [parseError, setParseError] = useState('')
+  
+  // Logic States
+  const [temperature, setTemperature] = useState(DEFAULT_SCHEMA.temperature)
+  const [topP, setTopP] = useState(0.7) // New Nucleus Sampling state
+  const [selectedToken, setSelectedToken] = useState(null)
 
-  // 1. Debounced Parse: Keeps the UI responsive while you type JSON
+  // Debounced live parse for the JSON Sandbox
   useEffect(() => {
     const t = setTimeout(() => {
       try {
         const parsed = JSON.parse(jsonText)
         setSchema(parsed)
-        // Only update local temperature if the JSON actually changed it
-        if (parsed.temperature !== undefined && parsed.temperature !== temperature) {
-          setTemperature(parsed.temperature)
-        }
+        setTemperature(parsed.temperature ?? 0.7)
         setParseError('')
       } catch (e) {
         setParseError(e.message.slice(0, 50))
@@ -52,7 +50,6 @@ export default function App() {
     return () => clearTimeout(t)
   }, [jsonText])
 
-  // 2. Explicit Apply: For when you click the "Run" button
   const handleApply = useCallback(() => {
     try {
       const parsed = JSON.parse(jsonText)
@@ -64,53 +61,45 @@ export default function App() {
     }
   }, [jsonText])
 
-  // 3. Global Temperature Sync: Connects Stage 3 slider to JSON and Schema
+  // Sync temperature slider back to JSON text
   const handleTempChange = useCallback(v => {
     setTemperature(v)
-    setJsonText(prev => {
-      try {
-        const parsed = JSON.parse(prev)
-        parsed.temperature = v
-        // We update the schema immediately so Stage 3/4 react instantly
-        setSchema(parsed) 
-        return JSON.stringify(parsed, null, 2)
-      } catch (_) {
-        return prev
-      }
-    })
-  }, [])
+    try {
+      const parsed = JSON.parse(jsonText)
+      parsed.temperature = v
+      setJsonText(JSON.stringify(parsed, null, 2))
+      setSchema(parsed)
+    } catch (_) {}
+  }, [jsonText])
 
   const tokens = schema.tokens ?? []
   const vectors = schema.vectors ?? {}
   const softmax = schema.softmax ?? []
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg1)', color: 'var(--text1)' }}>
-      {/* ── Header ── */}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg1)', color: 'var(--text1)' }}>
+      {/* Header */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '7px 16px',
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--bg1)',
-        flexShrink: 0,
+        padding: '7px 16px', borderBottom: '1px solid var(--border)',
+        background: 'var(--bg1)', flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--blue)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           <PulseDot />
           LLM Execution Tracer
-          <span style={{ color: 'var(--border2)', fontWeight: 300, marginLeft: 8, textTransform: 'none' }}>
-            // prompt: "{schema.prompt_topic || "Dynamic Context"}"
+          <span style={{ color: 'var(--border2)', fontWeight: 300, marginLeft: 8 }}>
+            // prompt: "{schema.prompt_topic || "System Trace"}"
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 10, color: 'var(--text3)' }}>
           <span style={{ padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 3, fontSize: 10, color: 'var(--blue)', background: 'var(--blue4)' }}>
-            cachy-v2-niri
+            llama-3.1-8b
           </span>
-          <span>trace_engine_active</span>
           <Clock />
         </div>
       </header>
 
-      {/* ── Main Layout ── */}
+      {/* Main Layout */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar
           jsonText={jsonText}
@@ -120,40 +109,74 @@ export default function App() {
         />
 
         <main style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {/* Top Row: Tokenization and 3D Vectors */}
+          {/* Top Row: Tokenization & Vectors */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Stage1Tokenization tokens={tokens} />
             <Stage2Vectors vectors={vectors} tokens={tokens} />
           </div>
 
-          {/* Bottom Row: Softmax Decision and Final Generation */}
+          {/* Bottom Row: Softmax & Live Generation */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <Stage3Softmax
               softmax={softmax}
               temperature={temperature}
-              topP={0.7}
+              topP={topP}
               onTempChange={handleTempChange}
-              onTokenSelected={setSelectedToken}
+              onTokenSelected={(token) => {
+                // Clicking a bar in Stage 3 injects it into Stage 4
+                setSelectedToken({ ...token, timestamp: Date.now() });
+              }}
             />
             <Stage4Generation
-              selectedToken={selectedToken}
               schema={schema}
               temperature={temperature}
+              selectedToken={selectedToken}
             />
+          </div>
+
+          {/* Nucleus Control Overlay (Global) */}
+          <div style={{ 
+            marginTop: 'auto', padding: '10px', background: 'var(--bg2)', 
+            border: '1px solid var(--border)', borderRadius: 4, display: 'flex', 
+            alignItems: 'center', gap: 20 
+          }}>
+             <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text3)', marginBottom: 4 }}>
+                  <span>GLOBAL_NUCLEUS_THRESHOLD (TOP-P)</span>
+                  <span style={{ color: 'var(--blue)' }}>{topP.toFixed(2)}</span>
+                </div>
+                <input 
+                  type="range" min="0.1" max="1.0" step="0.01" 
+                  value={topP} 
+                  onChange={(e) => setTopP(parseFloat(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--blue)', cursor: 'pointer' }}
+                />
+             </div>
           </div>
         </main>
       </div>
 
-      {/* ── Global Styles ── */}
       <style>{`
         @keyframes pulse-dot {
-          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4); }
-          50% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(0, 212, 255, 0); }
+          0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(0,255,157,0.4); }
+          50%      { opacity:0.7; box-shadow:0 0 0 4px rgba(0,255,157,0); }
         }
-        /* Custom scrollbar for that Linux Terminal look */
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: var(--border); borderRadius: 2px; }
+        :root {
+          --font: 'JetBrains Mono', monospace;
+          --bg1: #020617;
+          --bg2: #0f172a;
+          --bg3: #1e293b;
+          --bg4: #000000;
+          --border: #1e293b;
+          --border2: #334155;
+          --blue: #00d4ff;
+          --blue4: rgba(0, 212, 255, 0.05);
+          --green: #00ff9d;
+          --red: #ff4b4b;
+          --text1: #f8fafc;
+          --text3: #64748b;
+        }
+        body { margin: 0; font-family: var(--font); background: var(--bg1); color: var(--text1); }
       `}</style>
     </div>
   )

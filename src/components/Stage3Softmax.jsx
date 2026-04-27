@@ -1,163 +1,120 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useMemo } from 'react'
 
-const COLORS = ['#00d4ff', '#00ff9d', '#a855f7', '#ff4444', '#ffaa00']
-
-/**
- * Real-world Logit Warping: 
- * Takes raw probabilities, converts to logits, applies temperature, and returns softmax.
- */
-function applyTemperature(probs, temp) {
-  const logits = probs.map(p => Math.log(Math.max(p, 1e-10)) / Math.max(temp, 0.01))
-  const maxL = Math.max(...logits)
-  const exps = logits.map(l => Math.exp(l - maxL))
-  const sum = exps.reduce((a, b) => a + b, 0)
-  return exps.map(e => e / sum)
+// Professional sampling colors
+const COLORS = {
+  active: 'var(--blue)',
+  filtered: '#1e293b',
+  winner: 'var(--green)',
 }
 
-export default function Stage3({ softmax, temperature, topP = 0.7, onTempChange, onTokenSelected }) {
-  const [shaking, setShaking] = useState(false)
-  const prevTemp = useRef(temperature)
+export default function Stage3Softmax({ softmax, temperature, topP = 0.7, onTokenSelected }) {
+  
+  // REAL LLM LOGIC: Apply Temperature and Top-P filtering
+  const processedData = useMemo(() => {
+    if (!softmax || softmax.length === 0) return [];
 
-  // Calculate probabilities and sampling in one pass for consistency
-  const { processedProbs, inNucleus, winnerIndex } = useMemo(() => {
-    const rawProbs = softmax.map(s => s.prob ?? 0)
-    const total = rawProbs.reduce((a, b) => a + b, 0) || 1
-    const normalized = rawProbs.map(p => p / total)
-    
-    // 1. Warp the distribution
-    const probs = applyTemperature(normalized, temperature)
+    // 1. Convert Probs to Logits (Simplified inverse softmax for visualization)
+    const logits = softmax.map(s => ({
+      ...s,
+      logit: Math.log(s.prob / (1 - s.prob))
+    }));
 
-    // 2. Determine Nucleus (Top-P) membership
-    const indexed = probs.map((p, i) => ({ p, i })).sort((a, b) => b.p - a.p)
-    let cumul = 0
-    const nucleusSet = new Set()
-    for (const { p, i } of indexed) {
-      nucleusSet.add(i)
-      cumul += p
-      if (cumul >= topP) break
-    }
+    // 2. Apply Temperature Warping
+    // T < 1 sharpens (makes peak higher), T > 1 flattens (makes it random)
+    const warped = logits.map(l => ({
+      ...l,
+      warpedProb: Math.exp(l.logit / Math.max(temperature, 0.01))
+    }));
 
-    // 3. Stochastic Sampling: The actual "AI Decision"
-    // We only sample from the allowed nucleus
-    const random = Math.random() * cumul
-    let acc = 0
-    let sampledIdx = indexed[0].i // Fallback
-    for (const { p, i } of indexed) {
-      acc += p
-      if (random <= acc) {
-        sampledIdx = i
-        break
-      }
-    }
+    // 3. Normalize back to 100%
+    const sum = warped.reduce((a, b) => a + b.warpedProb, 0);
+    const normalized = warped.map(w => ({
+      ...w,
+      finalProb: w.warpedProb / sum
+    })).sort((a, b) => b.finalProb - a.finalProb);
 
-    return { processedProbs: probs, inNucleus: nucleusSet, winnerIndex: sampledIdx }
-  }, [softmax, temperature, topP])
-
-  // Sync the winner back to the LLM Generation stage
-  useEffect(() => {
-    if (softmax && softmax.length > 0 && softmax[winnerIndex]) {
-      onTokenSelected?.(softmax[winnerIndex]);
-    }
-  }, [winnerIndex, onTokenSelected, softmax])
-
-  const handleTempUpdate = v => {
-    onTempChange?.(v)
-    if (Math.abs(v - prevTemp.current) > 0.08) {
-      setShaking(true)
-      setTimeout(() => setShaking(false), 450)
-      prevTemp.current = v
-    }
-  }
-
-  const tempDesc =
-    temperature < 0.5 ? '// mode: deterministic (greedy)' :
-    temperature > 1.2 ? '// mode: stochastic (creative)' :
-                        '// mode: balanced'
+    // 4. Top-P (Nucleus) Filtering
+    let cumulative = 0;
+    return normalized.map(n => {
+      const wasInNucleus = cumulative < topP;
+      cumulative += n.finalProb;
+      return { ...n, inNucleus: wasInNucleus };
+    });
+  }, [softmax, temperature, topP]);
 
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
-        <div style={{ 
-          width: 18, height: 18, borderRadius: '50%', background: 'var(--blue3)', border: '1px solid var(--blue)', 
-          color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 
-        }}>3</div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Logit Warper · Nucleus Gate
-        </span>
+        <StageNum>3</StageNum>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Probability Distribution & Sampling
+          </span>
+          <span style={{ fontSize: 8, color: 'var(--text3)' }}>
+            Logit Warping (Temp: {temperature.toFixed(2)}) + Nucleus (P: {topP.toFixed(2)})
+          </span>
+        </div>
       </div>
 
       <div style={{ padding: 12 }}>
-        <div style={{ fontSize: 9, color: 'var(--text3)', marginBottom: 8, fontFamily: 'JetBrains Mono' }}>
-          // P(token | context) · top-p: {topP.toFixed(2)}
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
-          {softmax.map((s, i) => {
-            const p = processedProbs[i] ?? 0
-            const rawP = (s.prob ?? 0) * 100 // Original probability for the "Ghost Bar"
-            const col = s.clusterColor || COLORS[i % COLORS.length]
-            const excluded = !inNucleus.has(i)
-            const isWinner = i === winnerIndex
-
-            return (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ width: 60, textAlign: 'right', fontSize: 10, color: isWinner ? '#fff' : 'var(--text3)', fontWeight: isWinner ? 700 : 400, flexShrink: 0 }}>
-                  {isWinner ? '➢ ' : ''}{s.word}
-                </div>
-                
-                <div style={{ flex: 1, height: 18, background: 'var(--bg4)', borderRadius: 2, position: 'relative' }}>
-                  {/* Ghost Bar: Shows original weight before temperature warping */}
-                  <div style={{
-                    position: 'absolute', height: '100%', width: `${rawP}%`,
-                    borderRight: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)',
-                    zIndex: 0, transition: 'width 0.3s ease'
-                  }} />
-
-                  {/* Active Probability Bar */}
-                  <div style={{
-                    height: '100%', width: `${(p * 100).toFixed(1)}%`,
-                    borderRadius: 2, position: 'relative', zIndex: 1,
-                    background: excluded ? '#1e293b' : `linear-gradient(90deg, ${col}44, ${col})`,
-                    boxShadow: isWinner ? `0 0 12px ${col}88` : 'none',
-                    opacity: excluded ? 0.2 : 1,
-                    transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                    animation: shaking && !excluded ? 'shake 0.4s ease' : undefined,
-                  }} />
-                </div>
-
-                <div style={{ fontSize: 9, color: excluded ? 'var(--border2)' : col, width: 38, flexShrink: 0, fontFamily: 'JetBrains Mono' }}>
-                  {(p * 100).toFixed(1)}%
-                </div>
+        {/* Visualization of the Sampling Gate */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {processedData.map((token, i) => (
+            <div 
+              key={i} 
+              onClick={() => token.inNucleus && onTokenSelected?.(token)}
+              style={{ 
+                display: 'flex', alignItems: 'center', gap: 10, 
+                cursor: token.inNucleus ? 'pointer' : 'not-allowed',
+                opacity: token.inNucleus ? 1 : 0.4 
+              }}
+            >
+              <div style={{ width: 65, textAlign: 'right', fontSize: 10, color: token.inNucleus ? 'var(--text)' : 'var(--text3)', fontFamily: 'monospace' }}>
+                {token.word}
               </div>
-            )
-          })}
+
+              {/* Probability Bar */}
+              <div style={{ flex: 1, height: 14, background: 'var(--bg4)', borderRadius: 2, position: 'relative', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${(token.finalProb * 100).toFixed(2)}%`,
+                  background: token.inNucleus ? `linear-gradient(90deg, var(--blue3), var(--blue))` : COLORS.filtered,
+                  transition: 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: token.inNucleus && i === 0 ? `0 0 10px var(--blue3)` : 'none'
+                }} />
+              </div>
+
+              <div style={{ width: 35, fontSize: 9, color: token.inNucleus ? 'var(--blue)' : 'var(--text3)', fontFamily: 'monospace' }}>
+                {(token.finalProb * 100).toFixed(1)}%
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Temperature Control */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontSize: 9, color: 'var(--text3)' }}>Temperature Control</span>
-              <span style={{ fontSize: 10, color: 'var(--blue)', fontFamily: 'JetBrains Mono' }}>{temperature.toFixed(2)}</span>
-            </div>
-            <input
-              type="range" min={0.01} max={2} step={0.01}
-              value={temperature}
-              onChange={e => handleTempUpdate(parseFloat(e.target.value))}
-              style={{ width: '100%', accentColor: 'var(--blue)', cursor: 'pointer' }}
-            />
+        {/* Legend / Status */}
+        <div style={{ marginTop: 15, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 9, color: 'var(--text3)', fontFamily: 'monospace' }}>
+             {temperature < 0.7 ? '// Mode: ArgMax (Greedy)' : temperature > 1.2 ? '// Mode: Stochastic' : '// Mode: Balanced'}
+          </div>
+          <div style={{ fontSize: 8, color: 'var(--border2)', textTransform: 'uppercase' }}>
+            Tokens outside Nucleus are discarded
           </div>
         </div>
-        <div style={{ fontSize: 9, color: 'var(--border2)', marginTop: 6, fontStyle: 'italic' }}>{tempDesc}</div>
       </div>
+    </div>
+  )
+}
 
-      <style>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-2px); }
-          75% { transform: translateX(2px); }
-        }
-      `}</style>
+function StageNum({ children }) {
+  return (
+    <div style={{
+      width: 18, height: 18, borderRadius: '50%',
+      background: 'var(--blue3)', border: '1px solid var(--blue)',
+      color: 'var(--blue)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', fontSize: 9, fontWeight: 700, flexShrink: 0,
+    }}>
+      {children}
     </div>
   )
 }

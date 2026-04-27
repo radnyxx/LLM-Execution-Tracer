@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import OpenAI from 'openai';
 
-const groq = new OpenAI({
-  apiKey: import.meta.env.VITE_GROQ_API_KEY,
+// Initialize Groq - Safety check for the API Key
+const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+const groq = apiKey ? new OpenAI({
+  apiKey: apiKey,
   baseURL: "https://api.groq.com/openai/v1",
   dangerouslyAllowBrowser: true
-});
+}) : null;
 
 const STEPS = ['TOKENIZE', 'EMBED', 'ATTEND', 'DECODE', 'SAMPLE', 'APPEND'];
 const KV_SLOTS = 32;
@@ -19,11 +21,12 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
   const [isGenerating, setIsGenerating] = useState(false);
   const abortControllerRef = useRef(null);
 
-  // 1. Sync Logic: If Stage 3 picks a "manual" winner from the JSON, 
-  // we show it here to keep the "Tracer" visual consistent.
+  // 1. MANUAL INJECTION LOGIC
+  // Listen for clicks from Stage 3 and append them to the terminal
   useEffect(() => {
     if (selectedToken && !isGenerating) {
-      setDisplayed(prev => prev + " " + selectedToken.word);
+      // Append word with a space if there is already text
+      setDisplayed(prev => prev + (prev.length > 0 ? " " : "") + selectedToken.word);
       setKvCount(prev => Math.min(prev + 1, KV_SLOTS));
     }
   }, [selectedToken, isGenerating]);
@@ -37,20 +40,20 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
   };
 
   const generateResponse = async () => {
-    if (loading) return;
+    if (loading || !groq) return;
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
     
     setLoading(true);
     setIsGenerating(true);
-    setDisplayed('');
-    setKvCount(0);
+    // We don't clear the terminal anymore! We continue from what's there
     setDone(false);
     setActiveStep(0);
 
-    // Use the words from your Stage 1 Tokenization as the prompt!
-    const userPrompt = schema?.tokens?.map(t => t.word).join(" ") || "Hello";
+    // Prompt context: Current text in terminal + Stage 1 tokens
+    const contextText = schema?.tokens?.map(t => t.word).join(" ") || "";
+    const fullPrompt = `${contextText} ${displayed}`.trim();
 
     try {
       const stream = await groq.chat.completions.create(
@@ -58,12 +61,11 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
           messages: [
             {
               role: "system",
-              content: "You are a completion engine. Continue the sequence naturally. No explanations, notes."
+              content: "You are a completion engine. Continue the sequence naturally. No explanations, no fluff."
             },
-            { role: "user", content: userPrompt }
+            { role: "user", content: fullPrompt }
           ],
           model: "llama-3.1-8b-instant",
-          // CRITICAL: Using the global temperature from your slider!
           temperature: temperature, 
           stream: true,
         },
@@ -75,14 +77,13 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
 
         const content = chunk.choices[0]?.delta?.content || "";
         if (content) {
-          // Animated "Inference" steps for that high-tech feel
+          // Visual "Inference Step" animation
           for (let i = 0; i < STEPS.length; i++) {
             if (abortControllerRef.current?.signal.aborted) break;
             setActiveStep(i);
-            await new Promise(resolve => setTimeout(resolve, 40)); 
+            await new Promise(r => setTimeout(r, 30)); 
           }
 
-          if (abortControllerRef.current?.signal.aborted) break;
           setDisplayed((prev) => prev + content);
           setKvCount((prev) => Math.min(prev + 1, KV_SLOTS));
         }
@@ -93,7 +94,7 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error("Inference Error:", error);
-        setDisplayed("SIGNAL_LOST: Check API Key.");
+        setDisplayed(prev => prev + "\n[SIGNAL_LOST: CHECK_API_KEY]");
       }
     } finally {
       setLoading(false);
@@ -125,7 +126,6 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
                 fontWeight: activeStep === i ? 700 : 400,
                 color: activeStep === i && isGenerating ? '#fff' : 'var(--text3)',
                 background: activeStep === i && isGenerating ? 'var(--blue)' : 'transparent',
-                transition: 'all 0.1s',
               }}>
                 {step}
               </div>
@@ -140,17 +140,18 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
           border: '1px solid var(--border)',
           borderRadius: 3,
           padding: '12px',
-          fontFamily: 'JetBrains Mono, monospace',
+          fontFamily: 'var(--font)',
           fontSize: 11,
           flex: 1,
           color: 'var(--green)',
           lineHeight: 1.6,
-          position: 'relative'
+          position: 'relative',
+          overflowY: 'auto'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
             <button 
               onClick={generateResponse}
-              disabled={loading}
+              disabled={loading || !apiKey}
               style={{ color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 700 }}
             >
               {loading ? "> EXEC_IN_PROGRESS..." : "> RUN_INFERENCE"}
@@ -162,7 +163,7 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
             )}
           </div>
           
-          <div style={{ minHeight: '60px' }}>
+          <div style={{ minHeight: '60px', whiteSpace: 'pre-wrap' }}>
             {displayed}
             {(loading || (displayed && !done)) && <span style={{ display: 'inline-block', width: 6, height: 12, background: 'var(--green)', marginLeft: 4, animation: 'blink 1s step-end infinite' }} />}
           </div>
@@ -178,7 +179,6 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
                 background: i < kvCount ? 'var(--blue)' : 'var(--bg4)',
                 opacity: i < kvCount ? 1 : 0.3,
                 border: `1px solid ${i < kvCount ? 'var(--blue)' : 'var(--border)'}`,
-                transition: 'all 0.2s',
               }} />
             ))}
           </div>
