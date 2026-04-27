@@ -23,7 +23,9 @@ export default function Stage1Tokenization({ tokens = [] }) {
             {tokens.map((t, i) => (
               <tr key={i} style={rowStyle}>
                 <td style={{ color: '#00ff9d', fontWeight: 900 }}>{t.word}</td>
-                <td style={monoStyle}>{t.id.slice(0, 12)}...</td>
+                <td style={monoStyle}>
+                  {t.id ? String(t.id).slice(0, 12) : 'N/A'}...
+                </td>
                 <td>
                   <div style={barBg}>
                     <div style={{ ...barFill, width: `${t.weight * 100}%` }} />
