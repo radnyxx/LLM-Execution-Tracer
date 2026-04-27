@@ -3,9 +3,9 @@ import { DEFAULT_SCHEMA, DEFAULT_JSON } from './schema.js'
 import Sidebar from './components/Sidebar.jsx'
 import Stage1Tokenization from './components/Stage1Tokenization.jsx'
 import Stage2Vectors from './components/Stage2Vectors.jsx'
-import Stage3Softmax from './components/Stage3Softmax.jsx' // Now our Description component
+import Stage3Softmax from './components/Stage3Softmax.jsx'
 import Stage4Generation from './components/Stage4Generation.jsx'
-import SchemaModal from './components/SchemaModal.jsx' // New component
+import SchemaModal from './components/SchemaModal.jsx'
 
 function PulseDot() {
   return (
@@ -27,29 +27,29 @@ function Clock() {
 }
 
 export default function App() {
-  // --- UI STATES ---
   const [showWelcome, setShowWelcome] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [promptInput, setPromptInput] = useState("")
-
-  // --- DATA STATES ---
   const [schema, setSchema] = useState(DEFAULT_SCHEMA)
   const [temperature, setTemperature] = useState(DEFAULT_SCHEMA.temperature || 0.7)
   const [topP, setTopP] = useState(0.7)
 
-  // --- LOGIC: CONVERT PROMPT TO SCHEMA ---
   const handlePromptSubmit = (text) => {
     if (!text.trim()) return;
     const words = text.trim().split(/\s+/);
     const newTokens = words.map((w, i) => ({
       word: w,
       id: Math.floor(Math.random() * 50000),
-      weight: parseFloat((Math.random() * 0.9).toFixed(2))
+      // Assigning slightly higher weight to the first few words for visual clustering
+      weight: parseFloat((Math.random() * (1.0 - 0.1) + 0.1).toFixed(2))
     }));
-    
+
+    setDisplayed(prev =>
+      `[SYSTEM] New schema initialized. ${newTokens.length} tokens mapped to vector space.\n` + prev);
+
     setSchema(prev => ({
       ...prev,
-      prompt_topic: text.slice(0, 30) + "...",
+      prompt_topic: text.slice(0, 30) + (text.length > 30 ? "..." : ""),
       tokens: newTokens
     }));
   };
@@ -58,9 +58,15 @@ export default function App() {
   const vectors = schema.vectors ?? {}
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg1)', color: 'var(--text1)', overflow: 'hidden' }}>
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      background: 'var(--bg1)', 
+      color: 'var(--text1)', 
+      overflow: 'hidden' // Strictly prevent page scroll
+    }}>
       
-      {/* WELCOME OVERLAY */}
       {showWelcome && (
         <div className="welcome-overlay" onClick={() => setShowWelcome(false)}>
           <div className="welcome-box">
@@ -75,7 +81,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SCHEMA MODAL */}
       {isModalOpen && (
         <SchemaModal 
           schema={schema} 
@@ -84,7 +89,6 @@ export default function App() {
         />
       )}
 
-      {/* HEADER */}
       <header style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '7px 16px', borderBottom: '1px solid var(--border)',
@@ -105,10 +109,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* MAIN CONTENT AREA */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        
-        {/* REPURPOSED SIDEBAR (Prompt & Controls) */}
         <Sidebar 
           promptInput={promptInput}
           setPromptInput={setPromptInput}
@@ -118,51 +119,29 @@ export default function App() {
           setTemperature={setTemperature}
         />
 
-        {/* DASHBOARD GRID */}
+        {/* 4-QUADRANT SYMMETRIC GRID */}
         <main style={{ 
           flex: 1, 
           padding: 12, 
           display: 'grid',
           gap: 12,
-          overflowY: 'auto',
-          gridTemplateColumns: '1fr 1.2fr', // Left Col: Steps, Right Col: Visuals
-          gridTemplateRows: 'auto auto 1fr', // Stack Stages + Guide
-          gridTemplateAreas: `
-            "stage1 stage2"
-            "stage4 stage2"
-            "stage3 stage3"
-          `
+          gridTemplateColumns: '1fr 1fr', 
+          gridTemplateRows: '1fr 1fr', 
+          // Ensures the grid exactly fits the space between header and footer
+          height: '100%',
+          overflow: 'hidden' 
         }}>
-          {/* STAGE 1: TOKENIZATION */}
-          <section style={{ gridArea: 'stage1' }}>
-            <Stage1Tokenization tokens={tokens} />
-          </section>
-
-          {/* STAGE 4: TERMINAL (Under Stage 1) */}
-          <section style={{ gridArea: 'stage4' }}>
-            <Stage4Generation
-              schema={schema}
-              temperature={temperature}
-            />
-          </section>
-
-          {/* STAGE 2: VECTORS (Tall on the right) */}
-          <section style={{ gridArea: 'stage2', height: '100%' }}>
-            <Stage2Vectors vectors={vectors} tokens={tokens} />
-          </section>
-
-          {/* STAGE 3: DOCUMENTATION (Bottom Spanner) */}
-          <section style={{ gridArea: 'stage3' }}>
-            <Stage3Softmax />
-          </section>
+          <Stage1Tokenization tokens={tokens} />
+          <Stage2Vectors vectors={vectors} tokens={tokens} />
+          <Stage3Softmax />
+          <Stage4Generation schema={schema} temperature={temperature}/>
         </main>
       </div>
 
-      {/* GLOBAL NUCLEUS FOOTER */}
       <footer style={{ 
         padding: '8px 16px', background: 'var(--bg2)', 
         borderTop: '1px solid var(--border)', display: 'flex', 
-        alignItems: 'center', gap: 20, height: 40 
+        alignItems: 'center', gap: 20, height: 40, flexShrink: 0
       }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
             <span style={{ fontSize: 9, color: 'var(--text3)' }}>GLOBAL_NUCLEUS_THRESHOLD (TOP-P)</span>
@@ -218,7 +197,7 @@ export default function App() {
           --text1: #f8fafc;
           --text3: #64748b;
         }
-        body { margin: 0; font-family: var(--font); background: var(--bg1); color: var(--text1); }
+        body { margin: 0; font-family: var(--font); background: var(--bg1); color: var(--text1); overflow: hidden; }
       `}</style>
     </div>
   )
