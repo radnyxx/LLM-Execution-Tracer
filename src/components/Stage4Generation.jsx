@@ -128,21 +128,33 @@ export default function Stage4Generation({ schema, temperature, selectedToken })
             </React.Fragment>
           ))}
         </div>
-
-        <div style={{ background: '#000', border: '1px solid var(--border)', borderRadius: 3, padding: '12px', flex: 1, color: 'var(--green)', fontSize: 11, lineHeight: 1.6, overflowY: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <button onClick={generateResponse} disabled={loading} style={{ color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, font: 'inherit' }}>
-              {loading ? "> EXEC_TRACE..." : "> RUN_INFERENCE"}
-            </button>
-            {loading && <button onClick={stopGeneration} style={{ color: 'var(--red)', background: 'none', border: '1px solid var(--red)', padding: '1px 4px', borderRadius: 2, fontSize: 9 }}>HALT</button>}
-          </div>
-          <div style={{ minHeight: '60px', whiteSpace: 'pre-wrap' }}>
-            {displayed}
-            {(loading || (displayed && !done)) && <span style={{ display: 'inline-block', width: 6, height: 12, background: 'var(--green)', marginLeft: 4, animation: 'blink 1s step-end infinite' }} />}
-          </div>
-        </div>
+      // Locate the div that wraps {displayed}
+    <div style={{ 
+      background: '#000', 
+      border: '1px solid var(--border)', 
+      borderRadius: 3, 
+      padding: '12px', 
+      flex: 1,           // Take up all available space
+      minHeight: 0,      // CRITICAL: Allows the box to be smaller than its content
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      {/* The actual text area needs the scroll */}
+      <div style={{ 
+        flex: 1, 
+        overflowY: 'auto', // Enable vertical scrolling
+        whiteSpace: 'pre-wrap', 
+        color: 'var(--green)', 
+        fontSize: 11, 
+        fontFamily: 'var(--font)',
+        lineHeight: 1.6 
+      }}>
+        {displayed}
+        {(loading || (displayed && !done)) && <span className="cursor" />}
       </div>
-      <style>{`@keyframes blink { 50% { opacity: 0; } }`}</style>
     </div>
+  </div>
+<style>{`@keyframes blink { 50% { opacity: 0; } }`}</style>
+  </div>
   );
 }

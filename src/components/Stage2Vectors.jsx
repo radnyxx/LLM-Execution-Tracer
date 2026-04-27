@@ -1,74 +1,83 @@
-import React, { useMemo } from 'react'
+import React, { useState, useMemo } from 'react';
 
 export default function Stage2Vectors({ vectors = {}, tokens = [] }) {
-  const activeWords = useMemo(() => tokens.map(t => t.word), [tokens]);
+  const [rotation, setRotation] = useState({ x: 30, y: 45 });
+  const [hovered, setHovered] = useState(null);
 
-  // Project 3D coordinates to 2D SVG space
+  // Math to project 3D coords to 2D SVG space
   const projectedPoints = useMemo(() => {
-    return Object.entries(vectors).map(([word, coords]) => {
-      // Simple orthographic projection with a slight tilt
-      const x = coords[0] * 80 + coords[1] * 20 + 110;
-      const y = -coords[2] * 80 + coords[1] * 30 + 110;
-      return { word, x, y, active: activeWords.includes(word) };
+    const radX = (rotation.x * Math.PI) / 180;
+    const radY = (rotation.y * Math.PI) / 180;
+
+    return tokens.map((t, i) => {
+      // Mock 3D coords if none exist, otherwise use vectors prop
+      const [rawX, rawY, rawZ] = vectors[t.word] || [
+        Math.sin(i) * 50, 
+        Math.cos(i) * 50, 
+        (i - tokens.length/2) * 20
+      ];
+
+      // Rotation math
+      let x = rawX * Math.cos(radY) - rawZ * Math.sin(radY);
+      let z = rawX * Math.sin(radY) + rawZ * Math.cos(radY);
+      let y = rawY * Math.cos(radX) - z * Math.sin(radX);
+
+      return { 
+        word: t.word, 
+        id: t.id,
+        x: x + 150, // Center in 300px width
+        y: y + 200, // Center in 400px height
+        active: t.weight > 0.5 
+      };
     });
-  }, [vectors, activeWords]);
+  }, [tokens, vectors, rotation]);
 
   return (
-    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)' }}>
-        <div style={{ width: 18, height: 18, borderRadius: '50%', background: 'var(--blue3)', border: '1px solid var(--blue)', color: 'var(--blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>2</div>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Vector Embedding Space
-        </span>
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 4, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg3)', fontSize: 10, color: 'var(--blue)' }}>
+        STAGE_02 // VECTOR_SPACE_PROJECTION
       </div>
+      
+      <div 
+        style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: 'grab' }}
+        onMouseMove={(e) => {
+          if (e.buttons === 1) { // Rotate on click-drag
+            setRotation(prev => ({ x: prev.x + e.movementY, y: prev.y + e.movementX }));
+          }
+        }}
+      >
+        <svg viewBox="0 0 300 400" style={{ width: '100%', height: '100%' }}>
+          {/* Coordinate Axes */}
+          <line x1="150" y1="50" x2="150" y2="350" stroke="var(--border2)" strokeWidth="0.5" />
+          <line x1="50" y1="200" x2="250" y2="200" stroke="var(--border2)" strokeWidth="0.5" />
 
-      <div style={{ padding: 12 }}>
-        {/* Compact Table */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 6, marginBottom: 15 }}>
-          {tokens.map((t, i) => (
-            <div key={i} style={{ 
-              padding: '4px 8px', background: 'var(--bg4)', borderRadius: 2, border: '1px solid var(--border)',
-              fontSize: 9, display: 'flex', justifyContent: 'space-between'
-            }}>
-              <span style={{ color: 'var(--text1)' }}>{t.word}</span>
-              <span style={{ color: 'var(--blue)', fontFamily: 'monospace' }}>v_{i}</span>
-            </div>
-          ))}
-        </div>
+          {projectedPoints.map((p, i) => (
+            <g key={i} onMouseEnter={() => setHovered(p.word)} onMouseLeave={() => setHovered(null)}>
+              {/* Connection to Origin */}
+              <line x1="150" y1="200" x2={p.x} y2={p.y} stroke={hovered === p.word ? "var(--blue)" : "var(--border2)"} opacity="0.3" />
+              
+              {/* Data Point */}
+              <circle 
+                cx={p.x} cy={p.y} r={hovered === p.word ? 5 : 3} 
+                fill={p.active ? "var(--green)" : "var(--blue)"} 
+                style={{ transition: 'all 0.2s' }}
+              />
 
-        {/* LIGHTWEIGHT SVG PROJECTION */}
-        <div style={{ 
-          height: 220, background: '#000', borderRadius: 4, position: 'relative', 
-          border: '1px solid var(--border2)', overflow: 'hidden' 
-        }}>
-          <svg viewBox="0 0 220 220" style={{ width: '100%', height: '100%' }}>
-            {/* Grid Floor */}
-            <path d="M 20 180 L 110 140 L 200 180 L 110 220 Z" fill="none" stroke="var(--border)" strokeWidth="0.5" />
-            
-            {/* Vector Lines & Points */}
-            {projectedPoints.map((p, i) => (
-              <g key={i}>
-                {/* Vertical projection line to "floor" */}
-                <line x1={p.x} y1={p.y} x2={p.x} y2={180} stroke={p.active ? "var(--blue)" : "var(--border)"} strokeDasharray="2,2" opacity="0.3" />
-                
-                {/* The Point */}
-                <circle cx={p.x} cy={p.y} r={p.active ? 4 : 2} fill={p.active ? "var(--blue)" : "#475569"}>
-                   {p.active && <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite" />}
-                </circle>
-
-                {/* Word Label */}
-                <text x={p.x + 6} y={p.y + 3} fill={p.active ? "var(--blue)" : "var(--text3)"} style={{ fontSize: 8, fontFamily: 'var(--font)', pointerEvents: 'none' }}>
-                  {p.word}
+              {/* Label */}
+              {(hovered === p.word || p.active) && (
+                <text x={p.x + 8} y={p.y} fill="var(--text1)" style={{ fontSize: 8, fontFamily: 'monospace' }}>
+                  {p.word} [ID:{p.id}]
                 </text>
-              </g>
-            ))}
-          </svg>
-          
-          <div style={{ position: 'absolute', bottom: 8, right: 8, fontSize: 8, color: 'var(--blue)', opacity: 0.5 }}>
-            [ ENGINE: SVG_LITE ]
-          </div>
+              )}
+            </g>
+          ))}
+        </svg>
+        
+        <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 8, color: 'var(--text3)' }}>
+          ROT_X: {rotation.x}° | ROT_Y: {rotation.y}° <br />
+          [DRAG_TO_ROTATE]
         </div>
       </div>
     </div>
-  )
+  );
 }
