@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import Groq from "groq-sdk"; // 1. Added Missing Import
 import Sidebar from './components/Sidebar';
 import Stage1Tokenization from './components/Stage1Tokenization';
 import Stage2Vectors from './components/Stage2Vectors';
@@ -7,12 +6,6 @@ import Stage3Softmax from './components/Stage3Softmax';
 import Stage4Generation from './components/Stage4Generation';
 import SchemaModal from './components/SchemaModal'; 
 import { DEFAULT_SCHEMA } from './schema';
-
-// 2. Initialize Groq Client outside the component to avoid re-renders
-const groq = new Groq({
-  apiKey: import.meta.env.VITE_GROQ_API_KEY, 
-  dangerouslyAllowBrowser: true
-});
 
 export default function App() {
   const [schema, setSchema] = useState(DEFAULT_SCHEMA);
@@ -23,12 +16,71 @@ export default function App() {
   const [neuralState, setNeuralState] = useState({
     probs: [],
     activeTokenIndex: -1,
-    isProcessing: false
+    isProcessing: false,
+    displayedText: "" // Track text here for sync
   });
 
-  const handleNeuralUpdate = useCallback((data) => {
-    setNeuralState(prev => ({ ...prev, ...data }));
-  }, []);
+  // RESTORED: Centralized Logic for Inference
+  const handleRunInference = async () => {
+    if (neuralState.isProcessing) return;
+
+    setNeuralState(prev => ({ ...prev, isProcessing: true, displayedText: "" }));
+    const promptText = schema.tokens.map(t => t.word).join(" ");
+
+    try {
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: [{ role: "user", content: promptText }],
+          temperature: temperature,
+          stream: true // Keep it streaming for the "Tracer" effect
+        })
+      });
+
+      // Simple streaming reader
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        // Basic parsing for SSE (Server-Sent Events)
+        const lines = chunk.split("\n").filter(line => line.trim() !== "");
+        
+        for (const line of lines) {
+          if (line.includes("[DONE]")) break;
+          if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.slice(6));
+            const content = data.choices[0]?.delta?.content || "";
+            
+            if (content) {
+              setNeuralState(prev => ({
+                ...prev,
+                displayedText: prev.displayedText + content,
+                activeTokenIndex: Math.floor(Math.random() * schema.tokens.length),
+                probs: [
+                  { word: content.trim() || "...", p: 0.8 },
+                  { word: "node", p: 0.1 },
+                  { word: "vector", p: 0.05 }
+                ]
+              }));
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Inference Error:", error);
+    } finally {
+      setNeuralState(prev => ({ ...prev, isProcessing: false, activeTokenIndex: -1 }));
+    }
+  };
 
   const handlePromptSubmit = useCallback((text) => {
     if (!text || text.trim() === "") return;
@@ -52,17 +104,13 @@ export default function App() {
         <div style={welcomeOverlayStyle} onClick={() => setShowWelcome(false)}>
           <div style={welcomeBoxStyle}>
             <div style={{ color: '#38bdf8', fontWeight: 900, marginBottom: 10 }}>[ SYSTEM_INITIALIZED ]</div>
-            <p style={{ fontSize: 11, color: '#94a3b8' }}>Click to unlock neural tracer dashboard.</p>
+            <p style={{ fontSize: 11, color: '#94a3b8' }}>Click to unlock.</p>
           </div>
         </div>
       )}
 
       {isModalOpen && (
-        <SchemaModal 
-          schema={schema} 
-          setSchema={setSchema} 
-          onClose={() => setIsModalOpen(false)} 
-        />
+        <SchemaModal schema={schema} setSchema={setSchema} onClose={() => setIsModalOpen(false)} />
       )}
 
       <header style={headerStyle}>
@@ -81,32 +129,20 @@ export default function App() {
         />
         
         <main style={gridStyle}>
-          {/* STAGE 1: DENSE TABLE */}
-          <div style={boxStyle}>
-            <Stage1Tokenization tokens={schema.tokens} />
-          </div>
-
-          {/* STAGE 2: INTERACTIVE VECTOR SPACE */}
-          <div style={boxStyle}>
-            <Stage2Vectors tokens={schema.tokens} />
-          </div>
-
-          {/* STAGE 3: SOFTMAX DECISION HUB */}
+          <div style={boxStyle}><Stage1Tokenization tokens={schema.tokens} /></div>
+          <div style={boxStyle}><Stage2Vectors tokens={schema.tokens} /></div>
           <div style={boxStyle}>
             <Stage3Softmax 
               tokens={schema.tokens} 
               activeTokenIndex={neuralState.activeTokenIndex} 
-              logits={neuralState.probs}
+              logits={neuralState.probs} 
             />
           </div>
-
-          {/* STAGE 4: INFERENCE TERMINAL */}
           <div style={boxStyle}>
             <Stage4Generation 
-              schema={schema} 
-              temperature={temperature} 
-              onNeuralUpdate={handleNeuralUpdate} 
-              groq={groq} // Passed down to the terminal
+              displayed={neuralState.displayedText}
+              loading={neuralState.isProcessing}
+              onRun={handleRunInference}
             />
           </div>
         </main>
@@ -115,7 +151,7 @@ export default function App() {
   );
 }
 
-// STYLES
+// ... Styles (Container, Grid, etc.) remain exactly as you have them
 const containerStyle = { height: '100vh', display: 'flex', flexDirection: 'column', background: '#020617', color: '#f8fafc', fontFamily: 'JetBrains Mono, monospace', position: 'relative' };
 const headerStyle = { height: 40, borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', fontSize: 12 };
 const gridStyle = { flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: 15, padding: 15 };
