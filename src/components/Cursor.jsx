@@ -114,10 +114,10 @@ export default function Cursor() {
         style={{
           ...baseStyle,
           // Pill dimensions — expand when hovering
-          width:        hovering ? 'auto'  : 32,
-          minWidth:     hovering ? 56      : 32,
+          width:        hovering ? 'auto'  : 40,
+          minWidth:     hovering ? 64      : 40,
           maxWidth:     180,
-          height:       hovering ? 28      : 32,
+          height:       hovering ? 32      : 40,
           borderRadius: hovering ? 20      : 20,
           paddingLeft:  hovering ? 12      : 0,
           paddingRight: hovering ? 12      : 0,
@@ -131,13 +131,14 @@ export default function Cursor() {
 
           // Appearance
           background:  hovering
-            ? 'rgba(15, 23, 42, 0.92)'
-            : 'rgba(15, 23, 42, 0.85)',
-          border: `1px solid ${hovering ? 'rgba(248,250,252,0.25)' : 'rgba(248,250,252,0.12)'}`,
+            ? 'rgba(248, 250, 252, 0.18)'
+            : 'rgba(248, 250, 252, 0.12)',
+          border: `1px solid ${hovering ? 'rgba(248,250,252,0.35)' : 'rgba(248,250,252,0.18)'}`,
           boxShadow: hovering
-            ? '0 0 0 1px rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.5)'
-            : '0 0 0 1px rgba(255,255,255,0.03), 0 2px 12px rgba(0,0,0,0.4)',
+            ? '0 0 32px rgba(255,255,255,0.15), 0 0 12px rgba(255,255,255,0.1)'
+            : '0 0 24px rgba(255,255,255,0.08), 0 0 8px rgba(255,255,255,0.06)',
           backdropFilter: 'blur(12px)',
+          filter: hovering ? 'blur(6px)' : 'blur(8px)',
 
           // Text inside pill
           display:        'flex',
