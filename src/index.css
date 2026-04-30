@@ -120,7 +120,7 @@ html, body, #root {
 .pulse            { animation: pulse-glow 2s ease-in-out infinite; }
 .flicker          { animation: flicker 8s infinite; }
 
-/* ── Tooltip ───────────────────────────────────────────────────────────── */
+
 
 .tooltip-wrap { position: relative; display: inline-flex; }
 .tooltip-wrap .tooltip-box {
@@ -167,4 +167,11 @@ html, body, #root {
     linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* ── Tooltip trigger ───────────────────────────────────────────────────── */
+/* Box is rendered via React portal — no CSS positioning needed.           */
+.tooltip-trigger {
+  border-bottom: 1px dashed var(--text3);
+  cursor: help;
 }
