@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import Cursor from './components/Cursor';
 import Sidebar from './components/Sidebar';
 import Stage1Tokenization from './components/Stage1Tokenization';
 import Stage2Vectors from './components/Stage2Vectors';
@@ -132,6 +133,7 @@ export default function App() {
 
   return (
     <div style={containerStyle} className="grid-bg">
+      <Cursor />
 
       {/* ── WELCOME OVERLAY ── */}
       {showWelcome && (

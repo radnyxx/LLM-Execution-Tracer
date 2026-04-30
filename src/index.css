@@ -49,36 +49,40 @@ html, body, #root {
   font-family: var(--font);
 }
 
+/* Hide native cursor everywhere — Cursor.jsx handles rendering */
+*, *::before, *::after { cursor: none !important; }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg3); }
 ::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--blue); }
 
-/* Animations */
+/* ── Animations ────────────────────────────────────────────────────────── */
+
 @keyframes pulse-glow {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50%       { opacity: 0.4; }
 }
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
+  50%       { opacity: 0; }
 }
 @keyframes scan-line {
-  0% { transform: translateY(-100%); }
+  0%   { transform: translateY(-100%); }
   100% { transform: translateY(100vh); }
 }
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes slide-in {
   from { opacity: 0; transform: translateX(-10px); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 @keyframes token-appear {
   from { opacity: 0; background: rgba(0, 212, 255, 0.3); }
-  to { opacity: 1; background: transparent; }
+  to   { opacity: 1; background: transparent; }
 }
 @keyframes bar-fill {
   from { width: 0; }
@@ -88,27 +92,36 @@ html, body, #root {
 }
 @keyframes flicker {
   0%, 100% { opacity: 1; }
-  92% { opacity: 1; }
-  93% { opacity: 0.4; }
-  94% { opacity: 1; }
+  92%       { opacity: 1; }
+  93%       { opacity: 0.4; }
+  94%       { opacity: 1; }
 }
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 8px var(--green-glow); }
-  50% { box-shadow: 0 0 20px var(--green-glow), 0 0 40px var(--green-dim); }
+  50%       { box-shadow: 0 0 20px var(--green-glow), 0 0 40px var(--green-dim); }
 }
 @keyframes grid-scroll {
   from { background-position: 0 0; }
-  to { background-position: 0 40px; }
+  to   { background-position: 0 40px; }
 }
 
-.animate-fade-in { animation: fade-in-up 0.4s ease forwards; }
-.animate-slide-in { animation: slide-in 0.3s ease forwards; }
-.animate-token { animation: token-appear 0.5s ease forwards; }
-.cursor-blink { animation: blink 1s step-end infinite; }
-.pulse { animation: pulse-glow 2s ease-in-out infinite; }
-.flicker { animation: flicker 8s infinite; }
+/* Cursor label fade-in — used by Cursor.jsx */
+@keyframes cursor-label-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
-/* Tooltip */
+/* ── Utility classes ───────────────────────────────────────────────────── */
+
+.animate-fade-in  { animation: fade-in-up 0.4s ease forwards; }
+.animate-slide-in { animation: slide-in 0.3s ease forwards; }
+.animate-token    { animation: token-appear 0.5s ease forwards; }
+.cursor-blink     { animation: blink 1s step-end infinite; }
+.pulse            { animation: pulse-glow 2s ease-in-out infinite; }
+.flicker          { animation: flicker 8s infinite; }
+
+/* ── Tooltip ───────────────────────────────────────────────────────────── */
+
 .tooltip-wrap { position: relative; display: inline-flex; }
 .tooltip-wrap .tooltip-box {
   display: none;
@@ -122,10 +135,9 @@ html, body, #root {
   font-size: 9px;
   padding: 6px 10px;
   border-radius: 4px;
-  white-space: nowrap;
+  white-space: normal;
   z-index: 9999;
   max-width: 220px;
-  white-space: normal;
   line-height: 1.5;
   pointer-events: none;
   box-shadow: 0 0 20px var(--blue-dim);
@@ -133,56 +145,26 @@ html, body, #root {
 .tooltip-wrap:hover .tooltip-box { display: block; }
 .tooltip-trigger {
   border-bottom: 1px dashed var(--text3);
-  cursor: help;
 }
 
-/* Stage header accent bars */
+/* ── Stage header accent bars ──────────────────────────────────────────── */
+
 .stage-header-s1 { border-left: 3px solid var(--s1); }
 .stage-header-s2 { border-left: 3px solid var(--s2); }
 .stage-header-s3 { border-left: 3px solid var(--s3); }
 .stage-header-s4 { border-left: 3px solid var(--s4); }
 
-/* Run button glow */
+/* ── Run button glow ───────────────────────────────────────────────────── */
+
 .run-btn-active {
   animation: glow-pulse 1.5s ease-in-out infinite;
 }
 
-/* Grid background */
+/* ── Grid background ───────────────────────────────────────────────────── */
+
 .grid-bg {
   background-image:
     linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
-}
-
-* { cursor: none !important; }
-
-.custom-cursor {
-  position: fixed;
-  pointer-events: none;
-  z-index: 99999;
-  transition: transform 0.1s ease;
-}
-
-#cursor-dot {
-  width: 6px;
-  height: 6px;
-  background: #00ff9d;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-}
-
-#cursor-ring {
-  width: 28px;
-  height: 28px;
-  border: 1px solid rgba(0, 212, 255, 0.6);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: width 0.2s ease, height 0.2s ease, border-color 0.2s ease;
-}
-
-#cursor-ring.hovering {
-  width: 44px;
-  height: 44px;
-  border-color: #00ff9d;
 }
