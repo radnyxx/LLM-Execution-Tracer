@@ -2,11 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 
 /**
  * Cursor
- * - Sharp 5px white dot snapping instantly to pointer via style.transform
- * - Dark pill lagging behind via rAF lerp at speed 0.10
- * - Pill morphs wider with spring easing on button/interactive hover
- * - Label pulled from data-cursor > aria-label > title > innerText
- * - Hides when mouse leaves window
+ * - Sharp 5px white dot snapping instantly to pointer
+ * - Dark pill lagging behind via rAF lerp at 0.10 speed
+ * - Over plain text: pill shrinks to a minimal 12px dot — nothing gets covered
+ * - Over buttons/links: pill expands with label and spring bounce
+ * - Over inputs: pill shows a text cursor indicator
  */
 export default function Cursor() {
   const pillRef = useRef(null);
@@ -16,9 +16,10 @@ export default function Cursor() {
   const mouse  = useRef({ x: -200, y: -200 });
   const lerped = useRef({ x: -200, y: -200 });
 
-  const [visible,  setVisible]  = useState(false);
-  const [hovering, setHovering] = useState(false);
-  const [label,    setLabel]    = useState('');
+  const [visible, setVisible] = useState(false);
+  // mode: 'default' | 'interactive' | 'text'
+  const [mode,  setMode]  = useState('default');
+  const [label, setLabel] = useState('');
 
   useEffect(() => {
     const SPEED = 0.10;
@@ -27,28 +28,38 @@ export default function Cursor() {
       mouse.current = { x: e.clientX, y: e.clientY };
       if (!visible) setVisible(true);
 
-      // Dot snaps instantly — direct DOM write, zero React overhead
+      // Dot — direct DOM write, zero React overhead
       if (dotRef.current) {
-        dotRef.current.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+        dotRef.current.style.transform =
+          `translate(${e.clientX}px, ${e.clientY}px)`;
       }
 
-      // Detect interactive targets
       const el = document.elementFromPoint(e.clientX, e.clientY);
-      const target = el?.closest(
-        'button, a, input, textarea, select, [role="button"], [tabindex], label'
-      );
+      if (!el) return;
 
-      if (target) {
-        setHovering(true);
+      const interactive = el.closest(
+        'button, a, [role="button"], [tabindex]:not([tabindex="-1"]), label, select'
+      );
+      const inputEl = el.closest('input, textarea');
+      const isText  = !interactive && !inputEl && isTextNode(el);
+
+      if (interactive) {
         const hint =
-          target.dataset?.cursor ||
-          target.getAttribute('aria-label') ||
-          target.getAttribute('title') ||
-          (target.innerText?.trim().slice(0, 18)) ||
+          interactive.dataset?.cursor ||
+          interactive.getAttribute('aria-label') ||
+          interactive.getAttribute('title') ||
+          (interactive.innerText?.trim().slice(0, 22)) ||
           '';
+        setMode('interactive');
         setLabel(hint);
+      } else if (inputEl) {
+        setMode('text');
+        setLabel('');
+      } else if (isText) {
+        setMode('text');
+        setLabel('');
       } else {
-        setHovering(false);
+        setMode('default');
         setLabel('');
       }
     };
@@ -60,16 +71,14 @@ export default function Cursor() {
     document.addEventListener('mouseleave', onLeave);
     document.addEventListener('mouseenter', onEnter);
 
-    // rAF lerp loop — drives pill position only
+    // rAF lerp — pill only
     const loop = () => {
       lerped.current.x += (mouse.current.x - lerped.current.x) * SPEED;
       lerped.current.y += (mouse.current.y - lerped.current.y) * SPEED;
-
       if (pillRef.current) {
         pillRef.current.style.transform =
           `translate(${lerped.current.x}px, ${lerped.current.y}px) translate(-50%, -50%)`;
       }
-
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
@@ -82,9 +91,28 @@ export default function Cursor() {
     };
   }, []);
 
+  // Pill dimensions per mode
+  const pillSize = {
+    default:     { w: 32,   h: 32,  pl: 0,  pr: 0  },
+    interactive: { w: 'auto', h: 28, pl: 14, pr: 14 },
+    text:        { w: 12,   h: 12,  pl: 0,  pr: 0  },
+  }[mode];
+
+  const pillOpacity = {
+    default:     0.92,
+    interactive: 0.95,
+    text:        0.5,   // very subtle over text
+  }[mode];
+
+  const borderColor = {
+    default:     'rgba(248,250,252,0.10)',
+    interactive: 'rgba(248,250,252,0.22)',
+    text:        'rgba(248,250,252,0.20)',
+  }[mode];
+
   return (
     <>
-      {/* Sharp dot — exact pointer, zero lag */}
+      {/* Sharp dot */}
       <div
         ref={dotRef}
         style={{
@@ -93,20 +121,22 @@ export default function Cursor() {
           left:          0,
           width:         5,
           height:        5,
+          marginLeft:    -2.5,
+          marginTop:     -2.5,
           borderRadius:  '50%',
           background:    '#ffffff',
           pointerEvents: 'none',
           zIndex:        99999,
           willChange:    'transform',
           transform:     'translate(-200px, -200px)',
-          marginLeft:    -2.5,
-          marginTop:     -2.5,
           opacity:       visible ? 1 : 0,
           transition:    'opacity 0.2s ease',
+          // Hide dot when pill is tiny over text — dot alone is enough
+          ...(mode === 'text' ? { opacity: visible ? 1 : 0 } : {}),
         }}
       />
 
-      {/* Lagging dark pill */}
+      {/* Lagging pill */}
       <div
         ref={pillRef}
         style={{
@@ -118,24 +148,23 @@ export default function Cursor() {
           willChange:     'transform',
           transform:      'translate(-200px, -200px) translate(-50%, -50%)',
 
-          // Size — expands when hovering
-          minWidth:       hovering ? 60  : 32,
-          maxWidth:       200,
-          width:          hovering ? 'auto' : 32,
-          height:         hovering ? 28  : 32,
-          borderRadius:   20,
-          paddingLeft:    hovering ? 14  : 0,
-          paddingRight:   hovering ? 14  : 0,
+          minWidth:    mode === 'interactive' ? 60  : pillSize.w,
+          maxWidth:    220,
+          width:       pillSize.w,
+          height:      pillSize.h,
+          borderRadius: 20,
+          paddingLeft:  pillSize.pl,
+          paddingRight: pillSize.pr,
 
-          // Appearance — opaque dark pill
-          background:     'rgba(15, 23, 42, 0.92)',
-          border:         `1px solid ${hovering ? 'rgba(248,250,252,0.2)' : 'rgba(248,250,252,0.1)'}`,
-          boxShadow:      hovering
+          background:     `rgba(15, 23, 42, ${pillOpacity})`,
+          border:         `1px solid ${borderColor}`,
+          boxShadow:      mode === 'interactive'
             ? '0 0 0 1px rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.6)'
+            : mode === 'text'
+            ? 'none'
             : '0 0 0 1px rgba(255,255,255,0.03), 0 2px 12px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(8px)',
+          backdropFilter: mode === 'text' ? 'none' : 'blur(8px)',
 
-          // Text
           display:        'flex',
           alignItems:     'center',
           justifyContent: 'center',
@@ -149,7 +178,6 @@ export default function Cursor() {
 
           opacity: visible ? 1 : 0,
 
-          // Transitions — spring easing for size, normal for appearance
           transition: [
             'width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
             'min-width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
@@ -158,25 +186,26 @@ export default function Cursor() {
             'background 0.2s ease',
             'border-color 0.2s ease',
             'box-shadow 0.2s ease',
+            'backdrop-filter 0.2s ease',
             'opacity 0.2s ease',
           ].join(', '),
         }}
       >
-        {/* Label when hovering */}
-        {hovering && label && (
+        {/* Label — interactive mode only */}
+        {mode === 'interactive' && label && (
           <span style={{
             display:      'block',
             overflow:     'hidden',
             textOverflow: 'ellipsis',
-            maxWidth:     180,
+            maxWidth:     200,
             animation:    'cursor-label-in 0.12s ease forwards',
           }}>
             {label}
           </span>
         )}
 
-        {/* Inner dot when resting */}
-        {!hovering && (
+        {/* Inner dot — default resting mode */}
+        {mode === 'default' && (
           <span style={{
             width:        4,
             height:       4,
@@ -188,4 +217,32 @@ export default function Cursor() {
       </div>
     </>
   );
+}
+
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Returns true if the element contains or is a visible text node.
+ * Used to detect when the cursor is over readable content.
+ */
+function isTextNode(el) {
+  if (!el) return false;
+  const tag = el.tagName?.toLowerCase();
+  // Structural/container tags — not "text" per se
+  if (['div', 'section', 'main', 'aside', 'nav', 'header', 'footer',
+       'canvas', 'svg', 'img', 'video'].includes(tag)) {
+    // Only count as text if it has direct visible text content
+    const directText = Array.from(el.childNodes)
+      .filter(n => n.nodeType === 3)
+      .map(n => n.textContent.trim())
+      .join('');
+    return directText.length > 0;
+  }
+  // Semantic text tags
+  if (['p', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+       'li', 'td', 'th', 'dt', 'dd', 'code', 'pre',
+       'blockquote', 'em', 'strong', 'small'].includes(tag)) {
+    return true;
+  }
+  return false;
 }
