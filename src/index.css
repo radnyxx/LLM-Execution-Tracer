@@ -44,7 +44,7 @@
    * All the inline px values in components stay as-is; this scale factor
    * lifts the floor so "8px" effectively reads as "~10px" on Chrome/Edge.
    */
-  font-size: 13px;
+  font-size: 14px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

@@ -4,29 +4,35 @@ import App from './App.jsx'
 import './index.css'
 
 /*
- * Chrome/Edge enforce a minimum rendered font size (10–12px depending on
- * OS locale settings). Any inline style below that threshold gets silently
- * bumped, which misaligns labels and badges in our dashboard.
+ * Global font size normalizer — applies to ALL browsers including Firefox.
  *
- * Fix: intercept React's style prop application and clamp fontSize upward.
- * We do this by patching the React DOM config BEFORE the root renders.
- * This is the only place we need to touch — every component benefits
- * automatically with zero code changes elsewhere.
+ * The dashboard was designed at very small px values (7–11px) which look
+ * fine on a high-DPI display at 125–150% zoom but become unreadable at
+ * 100% zoom on any browser. Rather than hunting down every inline style,
+ * we intercept React.createElement and apply a uniform scale to every
+ * fontSize prop before it hits the DOM.
+ *
+ * Scale table:
+ *   7px  →  11px
+ *   8px  →  11.5px
+ *   9px  →  12px
+ *  10px  →  13px
+ *  11px  →  13.5px
+ *  12px  →  14px
+ *  13px+ →  unchanged  (headers/output text are already fine)
  */
+const SCALE_BELOW = 13;   // only touch sizes below this
+const SCALE_MIN   = 11;   // never render below this
+const SCALE_RATIO = 1.35; // multiply by this — tune up/down to taste
+
 const _createElement = React.createElement;
-React.createElement = function patchedCreateElement(type, props, ...children) {
+React.createElement = function(type, props, ...children) {
   if (props?.style?.fontSize !== undefined) {
     const raw = props.style.fontSize;
     const px  = typeof raw === 'number' ? raw : parseFloat(raw);
-    if (!isNaN(px) && px < 10) {
-      props = {
-        ...props,
-        style: {
-          ...props.style,
-          // Scale tiny sizes up proportionally so 7px → 10px, 8px → 10.5px, 9px → 11px
-          fontSize: Math.round((px / 7) * 10 * 10) / 10,
-        },
-      };
+    if (!isNaN(px) && px < SCALE_BELOW) {
+      const scaled = Math.max(SCALE_MIN, Math.round(px * SCALE_RATIO * 2) / 2);
+      props = { ...props, style: { ...props.style, fontSize: scaled } };
     }
   }
   return _createElement.call(this, type, props, ...children);
