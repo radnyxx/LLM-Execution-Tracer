@@ -18,10 +18,6 @@ Prompt → [Stage 1] Tokenize → [Stage 2] Embed → [Stage 3] Sample → [Stag
 
 ---
 
-## Check out the live website
-
-![website:](https://llm-visualizer-v1.vercel.app/)
-
 ## The JSON Sandbox
 
 The entire dashboard is driven by a single JSON schema. Edit it live in the left panel:
