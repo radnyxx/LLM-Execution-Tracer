@@ -32,7 +32,6 @@
   --font: 'JetBrains Mono', monospace;
   --font2: 'Space Grotesk', sans-serif;
 
-  /* Stage accent colors */
   --s1: #00d4ff;
   --s2: #a855f7;
   --s3: #f59e0b;
@@ -49,17 +48,16 @@ html, body, #root {
   font-family: var(--font);
 }
 
-/* Hide native cursor everywhere — Cursor.jsx handles rendering */
+/* Hide native cursor — Cursor.jsx renders the replacement */
 *, *::before, *::after { cursor: none !important; }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg3); }
 ::-webkit-scrollbar-thumb { background: var(--bg5); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--blue); }
 
-/* ── Animations ────────────────────────────────────────────────────────── */
-
+/* ── Keyframes ─────────────────────────────────────────────────────────── */
 @keyframes pulse-glow {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.4; }
@@ -105,14 +103,13 @@ html, body, #root {
   to   { background-position: 0 40px; }
 }
 
-/* Cursor label fade-in — used by Cursor.jsx */
+/* Cursor pill label fade-in — used by Cursor.jsx */
 @keyframes cursor-label-in {
-  from { opacity: 0; transform: translateY(3px); }
+  from { opacity: 0; transform: translateY(2px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Utility classes ───────────────────────────────────────────────────── */
-
 .animate-fade-in  { animation: fade-in-up 0.4s ease forwards; }
 .animate-slide-in { animation: slide-in 0.3s ease forwards; }
 .animate-token    { animation: token-appear 0.5s ease forwards; }
@@ -120,58 +117,28 @@ html, body, #root {
 .pulse            { animation: pulse-glow 2s ease-in-out infinite; }
 .flicker          { animation: flicker 8s infinite; }
 
-
-
-.tooltip-wrap { position: relative; display: inline-flex; }
-.tooltip-wrap .tooltip-box {
-  display: none;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg3);
-  border: 1px solid var(--blue);
-  color: var(--text2);
-  font-size: 9px;
-  padding: 6px 10px;
-  border-radius: 4px;
-  white-space: normal;
-  z-index: 9999;
-  max-width: 220px;
-  line-height: 1.5;
-  pointer-events: none;
-  box-shadow: 0 0 20px var(--blue-dim);
-}
-.tooltip-wrap:hover .tooltip-box { display: block; }
+/* ── Tooltip ───────────────────────────────────────────────────────────── */
+/* Box rendered via React portal — only trigger underline needed here */
 .tooltip-trigger {
   border-bottom: 1px dashed var(--text3);
+  cursor: help;
 }
 
 /* ── Stage header accent bars ──────────────────────────────────────────── */
-
 .stage-header-s1 { border-left: 3px solid var(--s1); }
 .stage-header-s2 { border-left: 3px solid var(--s2); }
 .stage-header-s3 { border-left: 3px solid var(--s3); }
 .stage-header-s4 { border-left: 3px solid var(--s4); }
 
 /* ── Run button glow ───────────────────────────────────────────────────── */
-
 .run-btn-active {
   animation: glow-pulse 1.5s ease-in-out infinite;
 }
 
 /* ── Grid background ───────────────────────────────────────────────────── */
-
 .grid-bg {
   background-image:
     linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
-}
-
-/* ── Tooltip trigger ───────────────────────────────────────────────────── */
-/* Box is rendered via React portal — no CSS positioning needed.           */
-.tooltip-trigger {
-  border-bottom: 1px dashed var(--text3);
-  cursor: help;
 }
