@@ -18,26 +18,9 @@ Prompt → [Stage 1] Tokenize → [Stage 2] Embed → [Stage 3] Sample → [Stag
 
 ---
 
-## Quick Start
+## Check out the live website
 
-```bash
-# 1. Clone
-git clone https://github.com/your-handle/llm-execution-tracer.git
-cd llm-execution-tracer
-
-# 2. Install
-npm install
-
-# 3. Run dev server
-npm run dev
-
-# 4. Build for production
-npm run build
-```
-
-> Requires **Node.js ≥ 18**.
-
----
+![website:](https://llm-visualizer-v1.vercel.app/)
 
 ## The JSON Sandbox
 
