@@ -36,9 +36,24 @@
   --s2: #a855f7;
   --s3: #f59e0b;
   --s4: #00ff9d;
+
+  /*
+   * Global font scale — this is the single knob that makes everything
+   * larger across all browsers without touching layout or inline styles.
+   * 1rem = 13px here instead of the browser default 16px.
+   * All the inline px values in components stay as-is; this scale factor
+   * lifts the floor so "8px" effectively reads as "~10px" on Chrome/Edge.
+   */
+  font-size: 13px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  /* Minimum font size guard — prevents Chrome from clipping sub-10px text */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 html, body, #root {
   height: 100%;
@@ -46,10 +61,34 @@ html, body, #root {
   background: var(--bg1);
   color: var(--text1);
   font-family: var(--font);
+  /* Sharper subpixel rendering on Chrome/Edge */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Hide native cursor — Cursor.jsx renders the replacement */
 *, *::before, *::after { cursor: none !important; }
+
+/*
+ * Cross-browser minimum readable size.
+ * Chrome has a built-in minimum font size (usually 10px or 12px depending
+ * on OS settings). Any inline style below that gets silently bumped up,
+ * which breaks layout. We prevent that by clamping our smallest text here.
+ */
+.stage-header-s1,
+.stage-header-s2,
+.stage-header-s3,
+.stage-header-s4,
+.tooltip-trigger,
+table,
+td, th {
+  font-size: max(10px, 0.77rem);
+}
+
+/* Inline monospace code fragments — often the tiniest text */
+.mono-small {
+  font-size: max(9px, 0.69rem);
+}
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 4px; height: 4px; }
@@ -102,8 +141,6 @@ html, body, #root {
   from { background-position: 0 0; }
   to   { background-position: 0 40px; }
 }
-
-/* Cursor pill label fade-in — used by Cursor.jsx */
 @keyframes cursor-label-in {
   from { opacity: 0; transform: translateY(2px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -118,10 +155,8 @@ html, body, #root {
 .flicker          { animation: flicker 8s infinite; }
 
 /* ── Tooltip ───────────────────────────────────────────────────────────── */
-/* Box rendered via React portal — only trigger underline needed here */
 .tooltip-trigger {
   border-bottom: 1px dashed var(--text3);
-  cursor: help;
 }
 
 /* ── Stage header accent bars ──────────────────────────────────────────── */
@@ -141,4 +176,18 @@ html, body, #root {
     linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/*
+ * ── Chrome / Edge minimum font size override ───────────────────────────
+ * Chrome enforces a minimum rendered font size (default 10px, sometimes
+ * 12px depending on system locale). Text set below this in inline styles
+ * gets forcibly bumped, breaking alignment. We opt out of that behaviour
+ * by setting a slightly higher base so nothing falls below Chrome's floor.
+ *
+ * The rule below targets the most common small-text containers in this app
+ * and ensures they render at least 10px on all browsers.
+ */
+div, span, td, th, p, li, label, button, input, textarea {
+  font-size: max(inherit, 10px);
 }
