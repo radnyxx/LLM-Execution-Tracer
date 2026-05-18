@@ -5,120 +5,165 @@ import Tooltip from './Tooltip';
 const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
 export default function Stage4Generation({ schema, temperature, onNeuralUpdate }) {
-  const [displayed, setDisplayed] = useState([]);   // array of {word, p, isNew}
-  const [loading, setLoading] = useState(false);
-  const [tokSec, setTokSec] = useState(0);
+  const [displayed,       setDisplayed]       = useState([]);
+  const [loading,         setLoading]         = useState(false);
+  const [tokSec,          setTokSec]          = useState(0);
   const [generatedTokens, setGeneratedTokens] = useState([]);
-  const [activeTab, setActiveTab] = useState('output'); // 'output' | 'kvcache'
-  const abortRef = useRef(null);
+  const [activeTab,       setActiveTab]       = useState('output');
+  const [apiError,        setApiError]        = useState('');
+
+  const abortRef     = useRef(null);
   const startTimeRef = useRef(null);
-  const tokCountRef = useRef(0);
-  const outputRef = useRef(null);
+  const tokCountRef  = useRef(0);
+  const outputRef    = useRef(null);
+  const loadingRef   = useRef(false);
+
+  const setLoadingBoth = (val) => {
+    loadingRef.current = val;
+    setLoading(val);
+  };
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
-    setLoading(false);
+    setLoadingBoth(false);
     onNeuralUpdate({ isProcessing: false, activeTokenIndex: -1 });
   }, [onNeuralUpdate]);
 
   const generateResponse = async () => {
-    if (loading) return;
+    if (loadingRef.current) return;
+
     setDisplayed([]);
     setGeneratedTokens([]);
-    setLoading(true);
+    setApiError('');
+    setLoadingBoth(true);
     setTokSec(0);
-    tokCountRef.current = 0;
+    tokCountRef.current  = 0;
     startTimeRef.current = Date.now();
 
     const controller = new AbortController();
     abortRef.current = controller;
+
     const promptText = schema?.tokens?.map(t => t.word).join(' ') || 'Hello';
+
+    // Check API key presence before hitting the network
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    if (!apiKey) {
+      setApiError('VITE_GROQ_API_KEY not set — add it to your .env file as VITE_GROQ_API_KEY=gsk_...');
+      setLoadingBoth(false);
+      onNeuralUpdate({ isProcessing: false, activeTokenIndex: -1 });
+      return;
+    }
 
     try {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [{ role: 'user', content: promptText }],
-          temperature: temperature || 0.7,
-          stream: true,
-          max_tokens: 400,
+          model:       'llama-3.1-8b-instant',
+          messages: [
+            {
+              // System prompt that suppresses AI assistant behaviour —
+              // output reads as raw model completion, not a chatbot reply
+              role: 'system',
+              content:
+                'You are a language model completing text. ' +
+                'Continue the input as a fluent, direct continuation — no preamble, ' +
+                'no questions, no offers to help, no "I", no "As an AI". ' +
+                'Output only the continuation text itself, nothing else.',
+            },
+            {
+              role:    'user',
+              content: promptText,
+            },
+          ],
+          temperature: Math.max(0.01, temperature || 0.7),
+          stream:      true,
+          max_tokens:  300,
         }),
         signal: controller.signal,
       });
 
-      const reader = response.body.getReader();
+      if (!response.ok) {
+        const errText = await response.text();
+        let friendly = `API ${response.status}`;
+        try {
+          const parsed = JSON.parse(errText);
+          friendly = parsed?.error?.message || friendly;
+        } catch (_) {}
+        throw new Error(friendly);
+      }
+
+      const reader  = response.body.getReader();
       const decoder = new TextDecoder();
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
+        const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split('\n').filter(l => l.trim() !== '');
 
         for (const line of lines) {
           if (line.includes('[DONE]')) break;
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              const content = data.choices[0]?.delta?.content || '';
-              if (!content) continue;
+          if (!line.startsWith('data: ')) continue;
 
-              // Real tok/sec
-              tokCountRef.current++;
-              const elapsed = (Date.now() - startTimeRef.current) / 1000;
-              const tps = elapsed > 0 ? (tokCountRef.current / elapsed).toFixed(1) : '0';
-              setTokSec(tps);
+          try {
+            const data    = JSON.parse(line.slice(6));
+            const content = data.choices?.[0]?.delta?.content;
+            if (!content) continue;
 
-              // Fake probability distribution based on content length + temp
-              const fakeP = Math.max(0.3, Math.min(0.99, 0.85 - temperature * 0.15 + Math.random() * 0.1));
-              const altP1 = (1 - fakeP) * 0.65;
-              const altP2 = (1 - fakeP) * 0.25;
-              const altP3 = (1 - fakeP) * 0.10;
+            tokCountRef.current++;
+            const elapsed = (Date.now() - startTimeRef.current) / 1000;
+            setTokSec(elapsed > 0 ? (tokCountRef.current / elapsed).toFixed(1) : '0');
 
-              // Split content into words for display
-              const words = content.split(/(\s+)/).filter(Boolean);
-              for (const word of words) {
-                setDisplayed(prev => [...prev, { word, p: fakeP, isNew: true }]);
-                setGeneratedTokens(prev => [...prev, { word, id: tokCountRef.current }]);
+            const fakeP = Math.max(0.3, Math.min(0.99,
+              0.85 - (temperature || 0.7) * 0.15 + Math.random() * 0.1
+            ));
+            const altP1 = (1 - fakeP) * 0.65;
+            const altP2 = (1 - fakeP) * 0.25;
+            const altP3 = (1 - fakeP) * 0.10;
 
-                // Reset isNew after animation
-                setTimeout(() => {
-                  setDisplayed(prev => prev.map((t, i) =>
-                    i === prev.length - 1 ? { ...t, isNew: false } : t
-                  ));
-                }, 600);
-              }
+            // Split on whitespace boundaries, preserving spaces
+            const words = content.split(/(\s+)/).filter(Boolean);
+            for (const word of words) {
+              setDisplayed(prev => [...prev, { word, p: fakeP, isNew: true }]);
+              setGeneratedTokens(prev => [...prev, { word, id: tokCountRef.current }]);
+              setTimeout(() => {
+                setDisplayed(prev =>
+                  prev.map((t, i) => i === prev.length - 1 ? { ...t, isNew: false } : t)
+                );
+              }, 600);
+            }
 
-              onNeuralUpdate({
-                probs: [
-                  { word: content.trim().split(' ')[0] || '...', p: fakeP },
-                  { word: 'and', p: altP1 },
-                  { word: 'the', p: altP2 },
-                  { word: ',', p: altP3 },
-                ],
-                activeTokenIndex: Math.floor(Math.random() * (schema?.tokens?.length || 1)),
-                isProcessing: true,
-              });
+            onNeuralUpdate({
+              probs: [
+                { word: content.trim().split(/\s+/)[0] || '…', p: fakeP },
+                { word: 'and', p: altP1 },
+                { word: 'the', p: altP2 },
+                { word: ',',   p: altP3 },
+              ],
+              activeTokenIndex: Math.floor(
+                Math.random() * Math.max(1, schema?.tokens?.length || 1)
+              ),
+              isProcessing: true,
+            });
 
-              // Scroll to bottom
-              if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
-              await delay(50);
-            } catch (e) { /* skip malformed chunks */ }
-          }
+            if (outputRef.current) {
+              outputRef.current.scrollTop = outputRef.current.scrollHeight;
+            }
+            await delay(30);
+          } catch (_) { /* skip malformed SSE chunks */ }
         }
       }
     } catch (e) {
       if (e.name !== 'AbortError') {
-        setDisplayed(prev => [...prev, { word: '\n[SYSTEM_ERROR_COMM_LINK_SEVERED]', p: 0, isNew: false }]);
+        setApiError(e.message);
       }
     } finally {
-      setLoading(false);
+      setLoadingBoth(false);
       onNeuralUpdate({ isProcessing: false, activeTokenIndex: -1 });
     }
   };
@@ -127,16 +172,17 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
 
   return (
     <div style={terminalContainer}>
-      {/* HEADER */}
+
+      {/* ── HEADER ── */}
       <div style={headerMetrics}>
-        <Metric label="STREAM" value={loading ? 'ACTIVE' : 'IDLE'} color={loading ? '#00ff9d' : '#334155'} />
-        <Metric label="TOK/SEC" value={loading ? tokSec : '0.0'} color="#00d4ff" />
-        <Metric label="TOKENS" value={totalToks} color="#64748b" />
-        <Metric label="TEMP" value={temperature.toFixed(2)} color="#f59e0b" />
-        <Metric label="INF_MODE" value="FP16" color="#475569" />
+        <Metric label="STREAM"   value={loading ? 'ACTIVE' : 'IDLE'}  color={loading ? '#00ff9d' : '#334155'} />
+        <Metric label="TOK/SEC"  value={loading ? tokSec   : '0.0'}   color="#00d4ff" />
+        <Metric label="TOKENS"   value={totalToks}                     color="#64748b" />
+        <Metric label="TEMP"     value={(temperature || 0.7).toFixed(2)} color="#f59e0b" />
+        <Metric label="INF_MODE" value="FP16"                          color="#475569" />
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
-          <TabBtn label="OUTPUT" active={activeTab === 'output'} onClick={() => setActiveTab('output')} />
+          <TabBtn label="OUTPUT"   active={activeTab === 'output'}  onClick={() => setActiveTab('output')} />
           <TabBtn label="KV_CACHE" active={activeTab === 'kvcache'} onClick={() => setActiveTab('kvcache')} />
           {loading && (
             <button onClick={stop} style={stopBtn}>■ STOP</button>
@@ -152,22 +198,48 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
         </div>
       </div>
 
-      {/* OUTPUT / KV CACHE */}
+      {/* ── OUTPUT / KV CACHE ── */}
       {activeTab === 'output' ? (
         <div ref={outputRef} style={outputArea}>
-          {displayed.length === 0 && !loading && (
+
+          {/* API key / network error */}
+          {apiError && (
+            <div style={errorBox}>
+              <span style={{ color: '#ff4d4d', fontWeight: 800 }}>⚠ INFERENCE_ERROR</span>
+              <br />
+              <span style={{ color: '#64748b' }}>{apiError}</span>
+              {apiError.includes('VITE_GROQ_API_KEY') && (
+                <>
+                  <br /><br />
+                  <span style={{ color: '#475569' }}>
+                    Create a free key at{' '}
+                    <span style={{ color: '#00d4ff' }}>console.groq.com</span>
+                    {' '}then add to your .env:{'\n'}
+                    <span style={{ color: '#00ff9d' }}>VITE_GROQ_API_KEY=gsk_your_key_here</span>
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {displayed.length === 0 && !loading && !apiError && (
             <span style={{ color: '#334155' }}>{'>'} AWAITING_INPUT_SEQUENCE...</span>
           )}
+
           {displayed.map((tok, i) => (
             <span
               key={i}
               title={`p=${(tok.p * 100).toFixed(1)}%`}
               style={{
-                color: tok.isNew ? '#ffffff' : tok.p > 0.7 ? '#00ff9d' : tok.p > 0.4 ? '#94a3b8' : '#64748b',
-                background: tok.isNew ? 'rgba(0,255,157,0.15)' : 'transparent',
-                transition: 'color 0.6s ease, background 0.6s ease',
+                color:        tok.isNew
+                  ? '#ffffff'
+                  : tok.p > 0.7 ? '#00ff9d'
+                  : tok.p > 0.4 ? '#94a3b8'
+                  : '#64748b',
+                background:   tok.isNew ? 'rgba(0,255,157,0.15)' : 'transparent',
+                transition:   'color 0.6s ease, background 0.6s ease',
                 borderRadius: 2,
-                cursor: 'default',
+                cursor:       'default',
               }}
             >
               {tok.word}
@@ -185,13 +257,13 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
         </div>
       )}
 
-      {/* FOOTER */}
+      {/* ── FOOTER ── */}
       <div style={footerMetrics}>
-        <span>STATUS: {loading ? 'EXECUTING_FORWARD_PASS' : 'SYSTEM_READY'}</span>
+        <span>STATUS: {loading ? 'EXECUTING_FORWARD_PASS' : apiError ? 'ERROR' : 'SYSTEM_READY'}</span>
         <span>|</span>
         <Tooltip term="kvCache">
           <span style={{ cursor: 'help', borderBottom: '1px dashed #334155' }}>
-            KV_CACHE: {schema?.tokens?.length + generatedTokens.length} entries
+            KV_CACHE: {(schema?.tokens?.length || 0) + generatedTokens.length} entries
           </span>
         </Tooltip>
         <span>|</span>
@@ -201,6 +273,8 @@ export default function Stage4Generation({ schema, temperature, onNeuralUpdate }
     </div>
   );
 }
+
+/* ─── Sub-components ──────────────────────────────────────────────────────── */
 
 function Metric({ label, value, color }) {
   return (
@@ -213,21 +287,29 @@ function Metric({ label, value, color }) {
 function TabBtn({ label, active, onClick }) {
   return (
     <button onClick={onClick} style={{
-      fontSize: 7, padding: '2px 7px',
-      border: `1px solid ${active ? '#00ff9d' : '#1e293b'}`,
-      background: active ? 'rgba(0,255,157,0.1)' : 'none',
-      color: active ? '#00ff9d' : '#334155',
-      borderRadius: 2, cursor: 'pointer',
-      fontFamily: 'JetBrains Mono, monospace', fontWeight: 800,
-    }}>{label}</button>
+      fontSize:     7,
+      padding:      '2px 7px',
+      border:       `1px solid ${active ? '#00ff9d' : '#1e293b'}`,
+      background:   active ? 'rgba(0,255,157,0.1)' : 'none',
+      color:        active ? '#00ff9d' : '#334155',
+      borderRadius: 2,
+      cursor:       'pointer',
+      fontFamily:   'JetBrains Mono, monospace',
+      fontWeight:   800,
+    }}>
+      {label}
+    </button>
   );
 }
 
+/* ─── Styles ──────────────────────────────────────────────────────────────── */
+
 const terminalContainer = { height: '100%', display: 'flex', flexDirection: 'column', background: '#020617', overflow: 'hidden' };
-const headerMetrics = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '5px 12px', borderBottom: '1px solid #1e293b', background: '#0a0f1e', minHeight: 36 };
-const metricItem = { fontSize: 8, color: '#475569', fontFamily: 'monospace', whiteSpace: 'nowrap' };
-const runBtn = { background: '#00ff9d', color: '#020617', border: 'none', borderRadius: 2, padding: '4px 12px', fontSize: 8, fontWeight: 900, cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', letterSpacing: 1 };
-const stopBtn = { background: 'rgba(255,77,77,0.1)', color: '#ff4d4d', border: '1px solid #ff4d4d', borderRadius: 2, padding: '4px 8px', fontSize: 8, fontWeight: 900, cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace' };
-const outputArea = { flex: 1, padding: '12px 14px', overflowY: 'auto', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
-const footerMetrics = { height: 22, background: '#0a0f1e', borderTop: '1px solid #1e293b', display: 'flex', alignItems: 'center', fontSize: 8, color: '#334155', gap: 12, paddingLeft: 10, fontFamily: 'monospace' };
-const cursorStyle = { display: 'inline-block', width: 6, height: 12, background: '#00ff9d', marginLeft: 2, verticalAlign: 'middle' };
+const headerMetrics     = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '5px 12px', borderBottom: '1px solid #1e293b', background: '#0a0f1e', minHeight: 36 };
+const metricItem        = { fontSize: 8, color: '#475569', fontFamily: 'monospace', whiteSpace: 'nowrap' };
+const runBtn            = { background: '#00ff9d', color: '#020617', border: 'none', borderRadius: 2, padding: '4px 12px', fontSize: 8, fontWeight: 900, cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace', letterSpacing: 1 };
+const stopBtn           = { background: 'rgba(255,77,77,0.1)', color: '#ff4d4d', border: '1px solid #ff4d4d', borderRadius: 2, padding: '4px 8px', fontSize: 8, fontWeight: 900, cursor: 'pointer', fontFamily: 'JetBrains Mono, monospace' };
+const outputArea        = { flex: 1, padding: '12px 14px', overflowY: 'auto', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
+const footerMetrics     = { height: 22, background: '#0a0f1e', borderTop: '1px solid #1e293b', display: 'flex', alignItems: 'center', fontSize: 8, color: '#334155', gap: 12, paddingLeft: 10, fontFamily: 'monospace' };
+const cursorStyle       = { display: 'inline-block', width: 6, height: 12, background: '#00ff9d', marginLeft: 2, verticalAlign: 'middle' };
+const errorBox          = { padding: '10px 12px', background: 'rgba(255,77,77,0.06)', border: '1px solid rgba(255,77,77,0.2)', borderRadius: 3, fontSize: 9, lineHeight: 1.7, marginBottom: 8, whiteSpace: 'pre-wrap' };
